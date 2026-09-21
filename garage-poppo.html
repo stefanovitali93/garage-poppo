@@ -1,0 +1,2056 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Garage Poppo — Archivio veicoli</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #16181b;
+    --panel: #1f2226;
+    --panel-alt: #262a2f;
+    --line: #34383e;
+    --text: #ecedee;
+    --text-dim: #9aa0a8;
+    --accent: #f2b705;
+    --accent-dark: #c99400;
+    --danger: #d64545;
+    --danger-dark: #a83636;
+    --radius: 10px;
+    --font-display: 'Oswald', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'Space Mono', monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse at top, #1c1f23 0%, var(--bg) 55%);
+    color:var(--text);
+    font-family:var(--font-body);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--accent); color:#1a1a1a;}
+
+  /* ---------- Layout shell ---------- */
+  .shell{max-width:1100px; margin:0 auto; padding:28px 20px 80px;}
+
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:16px; margin-bottom:28px; flex-wrap:wrap;
+  }
+  .brand{display:flex; align-items:center; gap:12px;}
+  .brand-mark{
+    width:40px; height:40px; border-radius:8px;
+    background:linear-gradient(155deg, var(--accent), var(--accent-dark));
+    display:flex; align-items:center; justify-content:center;
+    box-shadow: 0 4px 14px rgba(242,183,5,0.25);
+    flex-shrink:0;
+  }
+  .brand-mark svg{width:22px; height:22px;}
+  .brand h1{
+    font-family:var(--font-display); font-weight:700; letter-spacing:0.5px;
+    font-size:22px; margin:0; text-transform:uppercase;
+  }
+  .brand span{display:block; font-family:var(--font-mono); font-size:11px; color:var(--text-dim); letter-spacing:1px; margin-top:2px;}
+
+  .tabs{
+    display:flex; gap:4px; background:var(--panel); padding:4px; border-radius:999px;
+    border:1px solid var(--line);
+  }
+  .tab-btn{
+    font-family:var(--font-display); text-transform:uppercase; letter-spacing:0.6px;
+    font-size:13px; font-weight:600; color:var(--text-dim); background:none; border:none;
+    padding:9px 18px; border-radius:999px; cursor:pointer; transition:background .18s, color .18s;
+  }
+  .tab-btn.active{background:var(--accent); color:#1a1a1a;}
+  .tab-btn:not(.active):hover{color:var(--text);}
+
+  .view{display:none; animation:fadein .25s ease;}
+  .view.active{display:block;}
+  @keyframes fadein{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);}}
+
+  /* ---------- Form (scheda tecnica) ---------- */
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    padding:24px;
+  }
+  .form-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;}
+  .form-header h2{font-family:var(--font-display); text-transform:uppercase; letter-spacing:0.5px; font-size:18px; margin:0;}
+  .form-header .hint{font-size:12px; color:var(--text-dim); font-family:var(--font-mono);}
+
+  .type-switch{display:flex; gap:8px; margin-bottom:20px;}
+  .type-opt{
+    flex:1; border:1px solid var(--line); background:var(--panel-alt); border-radius:8px;
+    padding:14px; text-align:center; cursor:pointer; transition:border-color .15s, background .15s;
+    font-family:var(--font-display); text-transform:uppercase; letter-spacing:0.5px; font-size:14px;
+  }
+  .type-opt.selected{border-color:var(--accent); background:rgba(242,183,5,0.08); color:var(--accent);}
+  .type-opt svg{display:block; margin:0 auto 6px; width:26px; height:26px;}
+
+  .field-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .field-grid .full{grid-column:1 / -1;}
+  .section-divider{
+    font-family:var(--font-display); text-transform:uppercase; letter-spacing:0.6px; font-size:13px;
+    color:var(--accent); border-top:1px solid var(--line); padding-top:16px; margin-top:4px;
+  }
+  .field{display:flex; flex-direction:column; gap:6px;}
+  .field label{font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.6px; font-weight:600;}
+  .field input, .field select, .field textarea{
+    background:var(--panel-alt); border:1px solid var(--line); border-radius:7px;
+    padding:10px 12px; color:var(--text); font-family:var(--font-body); font-size:14px;
+    outline:none; transition:border-color .15s;
+  }
+  .field input[data-mono], .field.targa input{font-family:var(--font-mono); letter-spacing:1px;}
+  .field input:focus, .field select:focus, .field textarea:focus{border-color:var(--accent);}
+  .field textarea{resize:vertical; min-height:70px;}
+  .field input:disabled{opacity:0.45; cursor:not-allowed;}
+  .field-note{font-size:11px; color:var(--text-dim); margin-top:2px;}
+  .checkbox-label{
+    flex-direction:row !important; align-items:center; gap:8px !important; cursor:pointer;
+    text-transform:none !important; font-size:14px !important; color:var(--text) !important;
+    font-weight:400 !important; margin-top:8px;
+  }
+  .checkbox-label input[type="checkbox"]{width:16px; height:16px; accent-color:var(--accent); cursor:pointer;}
+
+  .photo-drop{
+    border:1.5px dashed var(--line); border-radius:8px; padding:18px; text-align:center;
+    cursor:pointer; transition:border-color .15s, background .15s; background:var(--panel-alt);
+  }
+  .photo-drop:hover{border-color:var(--accent);}
+  .photo-drop.has-image{padding:0; border-style:solid;}
+  .photo-drop img{width:100%; max-height:220px; object-fit:cover; display:block; border-radius:7px;}
+  .photo-drop .placeholder{color:var(--text-dim); font-size:13px;}
+  .photo-drop .placeholder svg{width:26px; height:26px; margin-bottom:6px; opacity:0.6;}
+
+  .form-actions{display:flex; gap:10px; margin-top:22px; justify-content:flex-end;}
+  .btn{
+    font-family:var(--font-display); text-transform:uppercase; letter-spacing:0.5px;
+    font-size:13px; font-weight:600; border-radius:7px; padding:11px 20px; cursor:pointer;
+    border:1px solid transparent; transition:transform .12s, opacity .12s;
+  }
+  .btn:active{transform:scale(0.97);}
+  .btn-primary{background:var(--accent); color:#1a1a1a;}
+  .btn-primary:hover{background:#ffc51f;}
+  .btn-ghost{background:none; border-color:var(--line); color:var(--text-dim);}
+  .btn-ghost:hover{color:var(--text); border-color:var(--text-dim);}
+  .btn-danger{background:none; border-color:var(--danger); color:var(--danger);}
+  .btn-danger:hover{background:rgba(214,69,69,0.1);}
+
+  /* ---------- Archivio ---------- */
+  .archive-toolbar{display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; align-items:center;}
+  .search-box{
+    flex:1; min-width:180px; background:var(--panel); border:1px solid var(--line); border-radius:7px;
+    padding:10px 14px; display:flex; align-items:center; gap:8px;
+  }
+  .search-box svg{width:16px; height:16px; color:var(--text-dim); flex-shrink:0;}
+  .search-box input{background:none; border:none; outline:none; color:var(--text); font-family:var(--font-body); font-size:14px; width:100%;}
+  .filter-chips{display:flex; gap:6px;}
+  .sort-select{
+    background:var(--panel); border:1px solid var(--line); border-radius:7px; padding:9px 12px;
+    color:var(--text); font-family:var(--font-body); font-size:13px; outline:none; cursor:pointer;
+  }
+  .sort-select:focus{border-color:var(--accent);}
+  .chip{
+    font-family:var(--font-display); text-transform:uppercase; font-size:12px; letter-spacing:0.5px;
+    padding:9px 14px; border-radius:7px; border:1px solid var(--line); background:var(--panel);
+    color:var(--text-dim); cursor:pointer; transition:.15s;
+  }
+  .chip.active{background:var(--accent); border-color:var(--accent); color:#1a1a1a;}
+
+  .count-line{font-family:var(--font-mono); font-size:12px; color:var(--text-dim); margin-bottom:16px;}
+
+  .revision-alert{
+    border:1px solid var(--danger); background:rgba(214,69,69,0.08); border-radius:10px;
+    padding:14px 16px; margin-bottom:18px;
+  }
+  .revision-alert-head{
+    font-family:var(--font-display); text-transform:uppercase; letter-spacing:0.5px; font-size:13px;
+    color:var(--danger); margin-bottom:8px;
+  }
+  .revision-alert-list{display:flex; flex-direction:column; gap:2px;}
+  .revision-alert-item{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; cursor:pointer;
+    padding:7px 8px; border-radius:6px; transition:background .15s; color:var(--text);
+  }
+  .revision-alert-item:hover{background:rgba(255,255,255,0.05);}
+  .ra-plate{font-family:var(--font-mono); font-size:11px; color:var(--text-dim); background:var(--panel-alt); padding:2px 6px; border-radius:4px;}
+  .ra-status{margin-left:auto; font-size:12px; color:var(--accent); font-weight:600;}
+  .ra-status.overdue{color:var(--danger);}
+
+  .lock-alert{
+    border:1px solid var(--accent); background:rgba(242,183,5,0.08); border-radius:10px;
+    padding:12px 16px; margin-bottom:18px; font-size:13px; display:flex; align-items:center;
+    gap:10px; flex-wrap:wrap; justify-content:space-between;
+  }
+  .lock-alert strong{color:var(--accent);}
+  .lock-alert.is-error{border-color:var(--danger); background:rgba(214,69,69,0.08);}
+  .lock-alert.is-error strong{color:var(--danger);}
+
+  .settings-intro{font-size:13px; color:var(--text-dim); line-height:1.6; margin:0 0 18px;}
+  .drive-status{
+    margin-top:16px; font-size:13px; color:var(--text-dim); background:var(--panel-alt);
+    border-radius:7px; padding:10px 14px; line-height:1.5;
+  }
+  .drive-status.status-ok{color:var(--accent);}
+  .drive-status.status-error{color:var(--danger);}
+
+  .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:18px;}
+  .vcard{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    overflow:hidden; cursor:pointer; transition:transform .15s, border-color .15s;
+    display:flex; flex-direction:column;
+  }
+  .vcard:hover{transform:translateY(-3px); border-color:#454a51;}
+  .vcard .photo{
+    height:150px; background:var(--panel-alt); display:flex; align-items:center; justify-content:center;
+    overflow:hidden; position:relative;
+  }
+  .vcard .photo img{width:100%; height:100%; object-fit:cover;}
+  .vcard .photo svg{width:36px; height:36px; color:#3d4046;}
+  .vcard .type-tag{
+    position:absolute; top:8px; left:8px; background:rgba(20,22,25,0.75); backdrop-filter:blur(3px);
+    padding:4px 9px; border-radius:5px; font-family:var(--font-display); font-size:11px;
+    text-transform:uppercase; letter-spacing:0.5px; color:var(--accent);
+  }
+  .vcard .photo-count{
+    position:absolute; bottom:8px; right:8px; background:rgba(20,22,25,0.75); backdrop-filter:blur(3px);
+    padding:3px 8px; border-radius:5px; font-family:var(--font-mono); font-size:11px; color:var(--text);
+  }
+  .vcard .body{padding:14px 14px 16px; display:flex; flex-direction:column; gap:10px; flex:1;}
+  .vcard .name{font-family:var(--font-display); font-size:17px; text-transform:uppercase; letter-spacing:0.3px;}
+  .vcard .name small{display:block; font-family:var(--font-body); text-transform:none; color:var(--text-dim); font-size:12px; font-weight:400; margin-top:2px;}
+
+  .plate{
+    display:inline-flex; align-self:flex-start; align-items:stretch; border-radius:4px; overflow:hidden;
+    border:1.5px solid #1a1a1a; box-shadow:0 1px 3px rgba(0,0,0,0.4);
+  }
+  .plate .eu{background:#0a3d91; color:#fff; font-size:8px; font-family:var(--font-mono); font-weight:700;
+    padding:3px 4px; display:flex; align-items:center;}
+  .plate .num{background:#f4f4f4; color:#111; font-family:var(--font-mono); font-weight:700; font-size:13px;
+    padding:3px 8px; letter-spacing:1.5px;}
+
+  .meta-row{display:flex; flex-wrap:wrap; gap:6px 12px; font-size:12px; color:var(--text-dim); font-family:var(--font-mono);}
+
+  .empty-state{
+    text-align:center; padding:70px 20px; color:var(--text-dim);
+  }
+  .empty-state svg{width:56px; height:56px; margin-bottom:16px; opacity:0.5;}
+  .empty-state h3{font-family:var(--font-display); text-transform:uppercase; color:var(--text); font-size:18px; margin:0 0 8px;}
+  .empty-state p{font-size:14px; max-width:340px; margin:0 auto 18px;}
+
+  /* ---------- Modal ---------- */
+  .overlay{
+    display:none; position:fixed; inset:0; background:rgba(10,11,13,0.7); backdrop-filter:blur(2px);
+    align-items:center; justify-content:center; padding:20px; z-index:50;
+  }
+  .overlay.active{display:flex;}
+  .modal{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    max-width:520px; width:100%; max-height:88vh; overflow-y:auto;
+  }
+  .modal .photo-lg{height:220px; background:var(--panel-alt); overflow:hidden;}
+  .modal .photo-lg img{width:100%; height:100%; object-fit:cover;}
+  .modal-body{padding:22px;}
+  .modal-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:14px;}
+  .modal-top h2{font-family:var(--font-display); text-transform:uppercase; font-size:22px; margin:0;}
+  .modal-top .close-x{background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:20px; line-height:1; padding:4px;}
+  .detail-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px 18px; margin:16px 0;}
+  .modal-docs{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;}
+  .modal-doc-link{
+    display:flex; align-items:center; gap:8px; background:var(--panel-alt); border:1px solid var(--line);
+    border-radius:7px; padding:8px 12px; font-size:12px; color:var(--text-dim); text-decoration:none;
+    transition:border-color .15s;
+  }
+  .modal-doc-link:hover{border-color:var(--accent); color:var(--text);}
+  .modal-doc-link img{width:24px; height:24px; object-fit:cover; border-radius:4px;}
+  .modal-doc-link svg{width:16px; height:16px; flex-shrink:0;}
+  .detail-item span{display:block; font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px;}
+  .detail-item strong{font-family:var(--font-mono); font-size:14px; font-weight:400;}
+  .note-block{background:var(--panel-alt); border-radius:7px; padding:12px 14px; font-size:13px; color:var(--text-dim); line-height:1.5; margin-top:6px;}
+  .modal-actions{display:flex; gap:10px; margin-top:20px;}
+
+  /* ---------- Custom fields ---------- */
+  .custom-field-row{display:flex; gap:8px; margin-bottom:8px; align-items:center;}
+  .custom-field-row input{
+    background:var(--panel-alt); border:1px solid var(--line); border-radius:7px;
+    padding:9px 11px; color:var(--text); font-family:var(--font-body); font-size:13px; outline:none;
+  }
+  .custom-field-row input:focus{border-color:var(--accent);}
+  .custom-field-row .cf-label{flex:0 0 38%;}
+  .custom-field-row .cf-value{flex:1;}
+  .cf-remove{
+    background:none; border:1px solid var(--line); color:var(--text-dim); border-radius:6px;
+    width:30px; height:30px; flex-shrink:0; cursor:pointer; font-size:15px; line-height:1;
+    transition:.15s;
+  }
+  .cf-remove:hover{border-color:var(--danger); color:var(--danger);}
+  #btn-add-field{align-self:flex-start;}
+
+  /* ---------- Document upload (libretti) ---------- */
+  .doc-upload{
+    border:1.5px dashed var(--line); border-radius:8px; background:var(--panel-alt);
+    cursor:pointer; transition:border-color .15s;
+  }
+  .doc-upload:hover{border-color:var(--accent);}
+  .doc-upload-empty{
+    display:flex; align-items:center; gap:8px; padding:12px; color:var(--text-dim); font-size:13px;
+  }
+  .doc-upload-empty svg{width:20px; height:20px; flex-shrink:0;}
+  .doc-upload-filled{
+    display:flex; align-items:center; gap:10px; padding:8px 12px;
+  }
+  .doc-upload-filled img{width:36px; height:36px; object-fit:cover; border-radius:5px; flex-shrink:0;}
+  .doc-upload-filled .doc-name{flex:1; font-size:13px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .doc-remove{
+    background:none; border:1px solid var(--line); color:var(--text-dim); border-radius:6px;
+    width:26px; height:26px; flex-shrink:0; cursor:pointer; font-size:13px;
+  }
+  .doc-remove:hover{border-color:var(--danger); color:var(--danger);}
+
+  /* ---------- Multi-photo ---------- */
+  .photo-thumbs{display:flex; flex-wrap:wrap; gap:8px;}
+  .photo-thumb{
+    position:relative; width:88px; height:88px; border-radius:7px; overflow:hidden;
+    border:1px solid var(--line);
+  }
+  .photo-thumb img{width:100%; height:100%; object-fit:cover; display:block;}
+  .photo-thumb .thumb-remove{
+    position:absolute; top:3px; right:3px; width:20px; height:20px; border-radius:5px;
+    background:rgba(10,11,13,0.75); border:none; color:#fff; font-size:12px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .photo-thumb .thumb-cover{
+    position:absolute; bottom:3px; left:3px; width:22px; height:22px; border-radius:5px;
+    background:rgba(10,11,13,0.75); border:none; color:var(--accent); font-size:13px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; line-height:1; opacity:0.85;
+  }
+  .photo-thumb .thumb-cover:hover{opacity:1; background:rgba(10,11,13,0.9);}
+  .photo-thumb .cover-tag{
+    position:absolute; bottom:0; left:0; right:0; background:rgba(20,22,25,0.75);
+    color:var(--accent); font-family:var(--font-mono); font-size:9px; text-align:center; padding:2px 0;
+    letter-spacing:0.5px; text-transform:uppercase;
+  }
+  .photo-add-tile{
+    width:88px; height:88px; border-radius:7px; border:1.5px dashed var(--line); background:var(--panel-alt);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+    color:var(--text-dim); cursor:pointer; transition:border-color .15s;
+  }
+  .photo-add-tile:hover{border-color:var(--accent);}
+  .photo-add-tile svg{width:20px; height:20px;}
+  .photo-hint{font-size:11px; color:var(--text-dim); margin-top:8px;}
+
+  .modal-gallery-main{height:220px; background:var(--panel-alt); overflow:hidden; position:relative;}
+  .modal-gallery-main img{width:100%; height:100%; object-fit:cover; display:block;}
+  .gallery-nav{
+    position:absolute; top:50%; transform:translateY(-50%); background:rgba(10,11,13,0.6); border:none;
+    color:#fff; width:32px; height:32px; border-radius:50%; cursor:pointer; font-size:16px;
+  }
+  .gallery-nav.prev{left:10px;} .gallery-nav.next{right:10px;}
+  .gallery-thumbs{display:flex; gap:6px; padding:10px 22px 0;}
+  .gallery-thumbs img{
+    width:44px; height:44px; object-fit:cover; border-radius:5px; cursor:pointer; opacity:0.55;
+    border:1.5px solid transparent; transition:.15s;
+  }
+  .gallery-thumbs img.active{opacity:1; border-color:var(--accent);}
+
+  /* ---------- Toast ---------- */
+  #toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--panel); border:1px solid var(--accent); color:var(--text);
+    padding:13px 20px; border-radius:8px; font-size:14px; display:flex; align-items:center; gap:10px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.4); opacity:0; pointer-events:none; transition:opacity .25s, transform .25s;
+    z-index:100;
+  }
+  #toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+  #toast svg{width:18px; height:18px; color:var(--accent); flex-shrink:0;}
+
+  @media (max-width:640px){
+    .field-grid{grid-template-columns:1fr;}
+    .topbar{flex-direction:column; align-items:flex-start;}
+    .tabs{width:100%;}
+    .tab-btn{flex:1;}
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14M5 17a2 2 0 1 0 4 0 2 2 0 1 0-4 0zm10 0a2 2 0 1 0 4 0 2 2 0 1 0-4 0zM3 17V9.5a1 1 0 0 1 .3-.7l2.2-2.2A2 2 0 0 1 6.9 6h10.2a2 2 0 0 1 1.5.7l2.1 2.3a1 1 0 0 1 .3.7V17"/></svg>
+      </div>
+      <div>
+        <h1>Garage Poppo</h1>
+        <span>ARCHIVIO VEICOLI PERSONALE</span>
+      </div>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="archivio">Archivio</button>
+      <button class="tab-btn" data-tab="aggiungi">Aggiungi</button>
+      <button class="tab-btn" data-tab="impostazioni">Impostazioni</button>
+    </div>
+  </div>
+
+  <!-- ARCHIVIO -->
+  <div class="view active" id="view-archivio">
+    <div class="lock-alert" id="lock-alert" style="display:none;"></div>
+    <div class="revision-alert" id="revision-alert" style="display:none;"></div>
+    <div class="archive-toolbar">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="search-input" placeholder="Cerca per marca, modello o targa…">
+      </div>
+      <div class="filter-chips">
+        <button class="chip active" data-filter="tutti">Tutti</button>
+        <button class="chip" data-filter="auto">Auto</button>
+        <button class="chip" data-filter="moto">Moto</button>
+        <button class="chip" data-filter="altro">Altro</button>
+      </div>
+      <select id="sort-select" class="sort-select" title="Ordina l'archivio">
+        <option value="dataInserimento_desc">Più recenti</option>
+        <option value="marca_asc">Marca (A-Z)</option>
+        <option value="modello_asc">Modello (A-Z)</option>
+        <option value="anno_desc">Anno (più recente)</option>
+        <option value="anno_asc">Anno (più vecchio)</option>
+        <option value="km_asc">Chilometri (crescente)</option>
+        <option value="km_desc">Chilometri (decrescente)</option>
+      </select>
+      <button class="btn btn-ghost" id="btn-export" title="Scarica un file di backup dell'archivio (JSON)">Esporta backup</button>
+      <button class="btn btn-ghost" id="btn-import" title="Carica un file di backup precedente">Importa backup</button>
+      <button class="btn btn-ghost" id="btn-export-excel" title="Riepilogo dell'archivio in Excel, senza foto">Esporta Excel</button>
+      <button class="btn btn-ghost" id="btn-export-pdf" title="Riepilogo dell'archivio in PDF, senza foto">Esporta PDF</button>
+      <button class="btn btn-ghost" id="btn-export-ics" title="File da importare nel calendario, con promemoria per le revisioni in scadenza">Promemoria calendario</button>
+      <input type="file" id="import-input" accept="application/json" style="display:none;">
+    </div>
+    <div class="count-line" id="count-line"></div>
+    <div class="grid" id="grid"></div>
+    <div class="empty-state" id="empty-state" style="display:none;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 17h14M5 17a2 2 0 1 0 4 0 2 2 0 1 0-4 0zm10 0a2 2 0 1 0 4 0 2 2 0 1 0-4 0zM3 17V9.5a1 1 0 0 1 .3-.7l2.2-2.2A2 2 0 0 1 6.9 6h10.2a2 2 0 0 1 1.5.7l2.1 2.3a1 1 0 0 1 .3.7V17"/></svg>
+      <h3 id="empty-title">Il garage è vuoto</h3>
+      <p id="empty-text">Non hai ancora inserito nessun veicolo. Aggiungi la prima auto o moto per iniziare il tuo archivio.</p>
+      <button class="btn btn-primary" id="empty-cta">Aggiungi un veicolo</button>
+    </div>
+  </div>
+
+  <!-- AGGIUNGI -->
+  <div class="view" id="view-aggiungi">
+    <div class="card">
+      <div class="form-header">
+        <h2 id="form-title">Nuovo veicolo</h2>
+        <span class="hint" id="form-hint">SCHEDA TECNICA</span>
+      </div>
+
+      <div class="type-switch">
+        <div class="type-opt selected" data-type="auto" id="opt-auto">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17h14M5 17a2 2 0 1 0 4 0 2 2 0 1 0-4 0zm10 0a2 2 0 1 0 4 0 2 2 0 1 0-4 0zM3 17V9.5a1 1 0 0 1 .3-.7l2.2-2.2A2 2 0 0 1 6.9 6h10.2a2 2 0 0 1 1.5.7l2.1 2.3a1 1 0 0 1 .3.7V17"/></svg>
+          Auto
+        </div>
+        <div class="type-opt" data-type="moto" id="opt-moto">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 17.5H9l3-7h4l2 4M9 10.5 6 6H3"/></svg>
+          Moto
+        </div>
+        <div class="type-opt" data-type="altro" id="opt-altro">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="9" width="13" height="7"/><path d="M15 11h4l3 3v2h-7z"/><circle cx="6.5" cy="18.5" r="1.8"/><circle cx="16.5" cy="18.5" r="1.8"/></svg>
+          Altro
+        </div>
+      </div>
+
+      <div class="field-grid">
+        <div class="field"><label>Marca</label><input type="text" id="f-marca" placeholder="es. Alfa Romeo"></div>
+        <div class="field"><label>Modello</label><input type="text" id="f-modello" placeholder="es. Giulia"></div>
+        <div class="field"><label>Anno</label><input type="number" id="f-anno" placeholder="es. 2019" min="1900" max="2100"></div>
+        <div class="field targa"><label>Targa</label><input type="text" id="f-targa" placeholder="es. AB123CD" style="text-transform:uppercase;"></div>
+        <div class="field"><label>Colore</label><input type="text" id="f-colore" placeholder="es. Grigio scuro"></div>
+        <div class="field"><label>Cilindrata (cc)</label><input type="number" id="f-cilindrata" placeholder="es. 1995" data-mono></div>
+        <div class="field"><label>Chilometri</label><input type="number" id="f-km" placeholder="es. 42000" data-mono></div>
+        <div class="field"><label>Alimentazione</label>
+          <select id="f-alimentazione">
+            <option value="">—</option>
+            <option>Benzina</option>
+            <option>Diesel</option>
+            <option>Elettrico</option>
+            <option>Ibrido</option>
+            <option>GPL</option>
+            <option>Metano</option>
+            <option>A miscela</option>
+          </select>
+        </div>
+        <div class="field full section-divider">Documenti e stato</div>
+        <div class="field"><label>N. Telaio</label><input type="text" id="f-telaio" placeholder="es. ZAR93200000123456" data-mono></div>
+        <div class="field"><label>Intestatario</label><input type="text" id="f-intestatario" placeholder="es. Mario Rossi"></div>
+        <div class="field"><label>Acquistato da</label><input type="text" id="f-acquistato-da" placeholder="es. Concessionario XY / privato"></div>
+        <div class="field"><label>Acquistato il</label><input type="date" id="f-acquistato-il"></div>
+        <div class="field"><label>Condizioni</label>
+          <select id="f-condizioni">
+            <option value="">—</option>
+            <option>Ottime</option>
+            <option>Buone</option>
+            <option>Sufficienti</option>
+            <option>Incompleta</option>
+            <option>Relitto</option>
+          </select>
+        </div>
+        <div class="field"><label>Data ultima revisione</label><input type="date" id="f-revisione-data"></div>
+        <div class="field"><label>Scadenza revisione</label><input type="date" id="f-revisione"></div>
+        <div class="field"><label>Motore funzionante</label>
+          <select id="f-motore-funzionante">
+            <option value="">—</option>
+            <option value="si">Sì</option>
+            <option value="no">No</option>
+          </select>
+        </div>
+        <div class="field" id="ultima-accensione-field">
+          <label>Ultima accensione</label>
+          <input type="date" id="f-ultima-accensione" disabled>
+          <span class="field-note" id="ultima-accensione-hint">Attivo solo se "Motore funzionante" = Sì</span>
+        </div>
+        <div class="field">
+          <label class="checkbox-label">
+            <input type="checkbox" id="f-motore-da-verificare">
+            Motore da verificare
+          </label>
+        </div>
+
+        <div class="field"><label>Libretto di circolazione</label>
+          <select id="f-libretto-circolazione">
+            <option value="">—</option>
+            <option value="si">Presente</option>
+            <option value="no">Non presente</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Foto libretto di circolazione</label>
+          <div class="doc-upload" id="doc-circolazione-upload">
+            <div class="doc-upload-empty" id="doc-circolazione-empty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="m21 15-5-5L5 19"/></svg>
+              <span>Carica foto</span>
+            </div>
+            <div class="doc-upload-filled" id="doc-circolazione-filled" style="display:none;">
+              <img id="doc-circolazione-thumb">
+              <span class="doc-name" id="doc-circolazione-name"></span>
+              <button type="button" class="doc-remove" id="doc-circolazione-remove">✕</button>
+            </div>
+          </div>
+          <input type="file" id="f-libretto-circolazione-foto" accept="image/*" style="display:none;">
+        </div>
+
+        <div class="field full">
+          <label>Libretto uso e manutenzione (foto o file)</label>
+          <div class="doc-upload" id="doc-manutenzione-upload">
+            <div class="doc-upload-empty" id="doc-manutenzione-empty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+              <span>Carica foto o file (PDF, immagine…)</span>
+            </div>
+            <div class="doc-upload-filled" id="doc-manutenzione-filled" style="display:none;">
+              <span class="doc-name" id="doc-manutenzione-name"></span>
+              <button type="button" class="doc-remove" id="doc-manutenzione-remove">✕</button>
+            </div>
+          </div>
+          <input type="file" id="f-libretto-uso-manutenzione" accept="image/*,application/pdf" style="display:none;">
+        </div>
+
+        <div class="field full">
+          <label>Foto</label>
+          <div class="photo-thumbs" id="photo-thumbs"></div>
+          <div class="photo-hint" id="photo-hint">Puoi caricare fino a 5 foto (compresse automaticamente se pesanti). Tocca ★ su una foto per renderla copertina.</div>
+          <input type="file" id="f-foto" accept="image/*" multiple style="display:none;">
+        </div>
+        <div class="field full"><label>Note</label><textarea id="f-note" placeholder="Manutenzioni, dettagli, curiosità…"></textarea></div>
+        <div class="field full">
+          <label>Campi personalizzati</label>
+          <div id="custom-fields-list"></div>
+          <button type="button" class="btn btn-ghost" id="btn-add-field">+ Aggiungi campo</button>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn btn-ghost" id="btn-cancel" style="display:none;">Annulla modifica</button>
+        <button class="btn btn-primary" id="btn-save">Salva veicolo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- IMPOSTAZIONI -->
+  <div class="view" id="view-impostazioni">
+    <div class="card">
+      <div class="form-header">
+        <h2>Sincronizzazione Google Drive</h2>
+        <span class="hint">MULTI-DISPOSITIVO</span>
+      </div>
+      <p class="settings-intro">
+        Con questa opzione, l'archivio viene salvato anche su Google Drive così da poterlo usare da più
+        dispositivi. Solo una persona alla volta può modificarlo: se qualcun altro lo sta già facendo,
+        l'app te lo segnala e apre in sola consultazione.
+      </p>
+
+      <div class="field-grid">
+        <div class="field full">
+          <label>Il tuo nome (per riconoscere chi ha in uso l'archivio)</label>
+          <input type="text" id="f-device-label" placeholder="es. Marco - telefono">
+        </div>
+        <div class="field full">
+          <label>Client ID Google</label>
+          <input type="text" id="f-client-id" placeholder="xxxxxxxxxxxx.apps.googleusercontent.com" data-mono>
+          <span class="field-note">Lo trovi in Google Cloud Console, dopo aver creato le credenziali (vedi guida).</span>
+        </div>
+      </div>
+
+      <div class="form-actions" style="justify-content:flex-start; flex-wrap:wrap;">
+        <button class="btn btn-primary" id="btn-save-drive-settings">Salva impostazioni</button>
+        <button class="btn btn-ghost" id="btn-drive-connect">Connetti Google Drive</button>
+        <button class="btn btn-ghost" id="btn-drive-sync-now" style="display:none;">Sincronizza ora</button>
+        <button class="btn btn-danger" id="btn-drive-end-session" style="display:none;">Fine sessione (libera l'archivio)</button>
+      </div>
+
+      <div class="drive-status" id="drive-status">Sincronizzazione non configurata — l'app funziona comunque in locale su questo dispositivo.</div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DETTAGLIO -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-gallery-main" id="modal-photo-wrap" style="display:none;">
+      <img id="modal-photo">
+      <button class="gallery-nav prev" id="gallery-prev" style="display:none;">‹</button>
+      <button class="gallery-nav next" id="gallery-next" style="display:none;">›</button>
+    </div>
+    <div class="gallery-thumbs" id="gallery-thumbs" style="display:none;"></div>
+    <div class="modal-body">
+      <div class="modal-top">
+        <h2 id="modal-title"></h2>
+        <button class="close-x" id="modal-close">✕</button>
+      </div>
+      <div class="plate" id="modal-plate-wrap" style="display:none;">
+        <div class="eu">I<br>★</div>
+        <div class="num" id="modal-plate"></div>
+      </div>
+      <div class="detail-grid" id="modal-details"></div>
+      <div class="modal-docs" id="modal-docs" style="display:none;"></div>
+      <div class="note-block" id="modal-note" style="display:none;"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="modal-edit">Modifica</button>
+        <button class="btn btn-danger" id="modal-delete">Elimina</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg>
+  <span id="toast-msg">Salvato</span>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+(function(){
+  const STORAGE_KEY = 'garage_veicoli_v1';           // vecchia chiave localStorage (solo per migrazione)
+  const STORAGE_KEY_FIELDS = 'garage_campi_template_v1'; // vecchia chiave localStorage (solo per migrazione)
+  const DB_NAME = 'garage_poppo_db';
+  const DB_VERSION = 1;
+  const MAX_PHOTOS = 5;
+  let veicoli = [];
+  let templateFields = [];
+  let editingId = null;
+  let currentFotos = [];
+  let currentFilter = 'tutti';
+  let currentSearch = '';
+  let currentSort = 'dataInserimento_desc';
+  let modalVeicoloId = null;
+  let modalPhotoIndex = 0;
+  let dbInstance = null;
+
+  // ---------- Storage: IndexedDB ----------
+  // Ogni veicolo è un record separato (non un unico grosso JSON): niente limite dei ~5-10MB
+  // di localStorage, e le scritture toccano solo il veicolo modificato.
+  function openDB(){
+    return new Promise((resolve, reject)=>{
+      if(dbInstance){ resolve(dbInstance); return; }
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = (e)=>{
+        const db = e.target.result;
+        if(!db.objectStoreNames.contains('veicoli')) db.createObjectStore('veicoli', {keyPath:'id'});
+        if(!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', {keyPath:'key'});
+      };
+      req.onsuccess = (e)=>{ dbInstance = e.target.result; resolve(dbInstance); };
+      req.onerror = (e)=> reject(e.target.error || new Error('Impossibile aprire il database locale'));
+    });
+  }
+  async function dbGetAllVeicoli(){
+    const db = await openDB();
+    return new Promise((resolve, reject)=>{
+      const tx = db.transaction('veicoli', 'readonly');
+      const req = tx.objectStore('veicoli').getAll();
+      req.onsuccess = ()=> resolve(req.result || []);
+      req.onerror = (e)=> reject(e.target.error);
+    });
+  }
+  async function dbPutVeicolo(v){
+    const db = await openDB();
+    return new Promise((resolve, reject)=>{
+      const tx = db.transaction('veicoli', 'readwrite');
+      tx.objectStore('veicoli').put(v);
+      tx.oncomplete = ()=> resolve();
+      tx.onerror = (e)=> reject(e.target.error);
+    });
+  }
+  async function dbDeleteVeicolo(id){
+    const db = await openDB();
+    return new Promise((resolve, reject)=>{
+      const tx = db.transaction('veicoli', 'readwrite');
+      tx.objectStore('veicoli').delete(id);
+      tx.oncomplete = ()=> resolve();
+      tx.onerror = (e)=> reject(e.target.error);
+    });
+  }
+  async function dbClearVeicoli(){
+    const db = await openDB();
+    return new Promise((resolve, reject)=>{
+      const tx = db.transaction('veicoli', 'readwrite');
+      tx.objectStore('veicoli').clear();
+      tx.oncomplete = ()=> resolve();
+      tx.onerror = (e)=> reject(e.target.error);
+    });
+  }
+  async function dbGetMeta(key){
+    const db = await openDB();
+    return new Promise((resolve, reject)=>{
+      const tx = db.transaction('meta', 'readonly');
+      const req = tx.objectStore('meta').get(key);
+      req.onsuccess = ()=> resolve(req.result ? req.result.value : undefined);
+      req.onerror = (e)=> reject(e.target.error);
+    });
+  }
+  async function dbSetMeta(key, value){
+    const db = await openDB();
+    return new Promise((resolve, reject)=>{
+      const tx = db.transaction('meta', 'readwrite');
+      tx.objectStore('meta').put({key, value});
+      tx.oncomplete = ()=> resolve();
+      tx.onerror = (e)=> reject(e.target.error);
+    });
+  }
+
+  // ---------- Caricamento + migrazione automatica dalla vecchia versione (localStorage) ----------
+  async function load(){
+    try{
+      let dbVeicoli = await dbGetAllVeicoli();
+      if(dbVeicoli.length === 0){
+        const rawOld = localStorage.getItem(STORAGE_KEY);
+        if(rawOld){
+          try{
+            const oldArr = JSON.parse(rawOld);
+            if(Array.isArray(oldArr) && oldArr.length){
+              for(const v of oldArr){ await dbPutVeicolo(v); }
+              dbVeicoli = await dbGetAllVeicoli();
+              localStorage.removeItem(STORAGE_KEY);
+              setTimeout(()=> showToast(`Archivio migrato al nuovo sistema di salvataggio (${dbVeicoli.length} veicoli) ✓`), 300);
+            }
+          }catch(e){ console.error('Migrazione veicoli non riuscita:', e); }
+        }
+      }
+      veicoli = dbVeicoli;
+      veicoli.forEach(v=>{
+        if(v.foto && !Array.isArray(v.foto)) v.foto = [v.foto];
+        if(!v.foto) v.foto = [];
+      });
+    }catch(e){ console.error('Errore di caricamento archivio:', e); veicoli = []; }
+
+    try{
+      let tf = await dbGetMeta('templateFields');
+      if(tf === undefined){
+        const rawOldF = localStorage.getItem(STORAGE_KEY_FIELDS);
+        if(rawOldF){
+          try{
+            const parsed = JSON.parse(rawOldF);
+            if(Array.isArray(parsed)){ tf = parsed; await dbSetMeta('templateFields', tf); localStorage.removeItem(STORAGE_KEY_FIELDS); }
+          }catch(e){ /* ignora */ }
+        }
+      }
+      templateFields = tf || [];
+    }catch(e){ templateFields = []; }
+  }
+  async function persistTemplateFields(){
+    await dbSetMeta('templateFields', templateFields);
+  }
+
+  // ======================================================================
+  // ---------- Sincronizzazione Google Drive (opzionale, multi-dispositivo) ----------
+  // ======================================================================
+  const DRIVE_DATA_FILENAME = 'garage-poppo-data.json';
+  const DRIVE_LOCK_FILENAME = 'garage-poppo-lock.json';
+  const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+  const LOCK_TIMEOUT_MIN = 25;      // un lucchetto più vecchio di così è considerato abbandonato
+  const LOCK_RENEW_MIN = 5;         // ogni quanto rinnoviamo il nostro lucchetto mentre siamo attivi
+  const SYNC_DEBOUNCE_MS = 6000;    // attesa dopo l'ultima modifica prima di caricare su Drive
+
+  const mySessionId = Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+  let tokenClient = null;
+  let accessToken = null;
+  let tokenExpiresAt = 0;
+  let driveConnected = false;
+  let driveReadOnly = false;
+  let driveDataFileId = null;
+  let driveLockFileId = null;
+  let lockHeartbeatTimer = null;
+  let syncDebounceTimer = null;
+
+  function getClientId(){ return localStorage.getItem('garage_drive_client_id_v1') || ''; }
+  function getDeviceLabel(){ return localStorage.getItem('garage_device_label_v1') || 'Dispositivo senza nome'; }
+  function driveConfigured(){ return !!getClientId(); }
+
+  function ensureTokenClient(){
+    if(tokenClient) return true;
+    const clientId = getClientId();
+    if(!clientId) return false;
+    if(typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2){
+      return false; // libreria Google non ancora caricata (o bloccata da assenza di connessione)
+    }
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: DRIVE_SCOPE,
+      callback: ()=>{} // sovrascritto ad ogni richiesta, vedi requestAccessToken
+    });
+    return true;
+  }
+  function requestAccessToken(interactive){
+    return new Promise((resolve, reject)=>{
+      if(!ensureTokenClient()){ reject(new Error('Google Identity Services non disponibile (verifica la connessione o il Client ID).')); return; }
+      tokenClient.callback = (resp)=>{
+        if(resp.error){ reject(new Error('Accesso Google negato o annullato.')); return; }
+        accessToken = resp.access_token;
+        tokenExpiresAt = Date.now() + (resp.expires_in*1000) - 60000;
+        resolve(accessToken);
+      };
+      tokenClient.requestAccessToken({prompt: interactive ? 'consent' : ''});
+    });
+  }
+  async function getValidAccessToken(){
+    if(accessToken && Date.now() < tokenExpiresAt) return accessToken;
+    return requestAccessToken(false);
+  }
+
+  // ---- Chiamate Drive API (file nella cartella nascosta "appDataFolder") ----
+  async function driveFindFile(name){
+    const token = await getValidAccessToken();
+    const q = encodeURIComponent(`name='${name}' and 'appDataFolder' in parents and trashed=false`);
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${q}&fields=files(id,name,modifiedTime)`, {
+      headers:{Authorization:`Bearer ${token}`}
+    });
+    if(!res.ok) throw new Error(`Drive: ricerca file non riuscita (${res.status})`);
+    const data = await res.json();
+    return (data.files && data.files[0]) || null;
+  }
+  async function driveReadFile(fileId){
+    const token = await getValidAccessToken();
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers:{Authorization:`Bearer ${token}`}
+    });
+    if(!res.ok) throw new Error(`Drive: lettura file non riuscita (${res.status})`);
+    return res.json();
+  }
+  async function driveWriteFile(name, obj, existingFileId){
+    const token = await getValidAccessToken();
+    const metadata = existingFileId ? {} : {name, parents:['appDataFolder']};
+    const boundary = 'garage_poppo_' + Date.now();
+    const body =
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
+      `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(obj)}\r\n` +
+      `--${boundary}--`;
+    const url = existingFileId
+      ? `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart`
+      : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
+    const res = await fetch(url, {
+      method: existingFileId ? 'PATCH' : 'POST',
+      headers:{Authorization:`Bearer ${token}`, 'Content-Type':`multipart/related; boundary=${boundary}`},
+      body
+    });
+    if(!res.ok) throw new Error(`Drive: scrittura file non riuscita (${res.status})`);
+    return res.json();
+  }
+  async function driveDeleteFile(fileId){
+    const token = await getValidAccessToken();
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+      method:'DELETE', headers:{Authorization:`Bearer ${token}`}
+    });
+    if(!res.ok && res.status !== 404) throw new Error(`Drive: eliminazione file non riuscita (${res.status})`);
+  }
+
+  // ---- Lucchetto ----
+  async function checkAndAcquireLock(){
+    const existing = await driveFindFile(DRIVE_LOCK_FILENAME);
+    if(existing){
+      let lockData;
+      try{ lockData = await driveReadFile(existing.id); }catch(e){ lockData = null; }
+      if(lockData && lockData.sessionId !== mySessionId){
+        const ageMin = (Date.now() - new Date(lockData.lockedAt).getTime()) / 60000;
+        if(ageMin < LOCK_TIMEOUT_MIN){
+          return {locked:true, by: lockData.lockedBy, since: lockData.lockedAt};
+        }
+      }
+      driveLockFileId = existing.id;
+    }
+    const payload = {lockedBy:getDeviceLabel(), lockedAt:new Date().toISOString(), sessionId:mySessionId};
+    const result = await driveWriteFile(DRIVE_LOCK_FILENAME, payload, driveLockFileId);
+    driveLockFileId = result.id;
+    return {locked:false};
+  }
+  function startLockHeartbeat(){
+    if(lockHeartbeatTimer) clearInterval(lockHeartbeatTimer);
+    lockHeartbeatTimer = setInterval(async ()=>{
+      try{
+        const payload = {lockedBy:getDeviceLabel(), lockedAt:new Date().toISOString(), sessionId:mySessionId};
+        const result = await driveWriteFile(DRIVE_LOCK_FILENAME, payload, driveLockFileId);
+        driveLockFileId = result.id;
+      }catch(e){ console.error('Rinnovo lucchetto non riuscito:', e); }
+    }, LOCK_RENEW_MIN*60000);
+  }
+  async function releaseLock(){
+    if(lockHeartbeatTimer){ clearInterval(lockHeartbeatTimer); lockHeartbeatTimer = null; }
+    if(!driveLockFileId) return;
+    try{ await driveDeleteFile(driveLockFileId); }catch(e){ console.error('Rilascio lucchetto non riuscito:', e); }
+    driveLockFileId = null;
+  }
+
+  // ---- Dati: scarica/carica ----
+  async function scaricaDatiDaDrive(){
+    const file = await driveFindFile(DRIVE_DATA_FILENAME);
+    if(!file){ driveDataFileId = null; return null; }
+    driveDataFileId = file.id;
+    return driveReadFile(file.id);
+  }
+  async function caricaDatiSuDrive(){
+    const payload = {veicoli, templateFields, salvatoIl:new Date().toISOString()};
+    const result = await driveWriteFile(DRIVE_DATA_FILENAME, payload, driveDataFileId);
+    driveDataFileId = result.id;
+  }
+
+  // ---- Stato UI ----
+  function setDriveStatus(msg, kind){
+    const el = document.getElementById('drive-status');
+    el.textContent = msg;
+    el.className = 'drive-status' + (kind ? ' status-'+kind : '');
+  }
+  function renderLockAlert(info){
+    const box = document.getElementById('lock-alert');
+    if(!info){ box.style.display = 'none'; box.innerHTML = ''; return; }
+    box.className = 'lock-alert' + (info.error ? ' is-error' : '');
+    box.innerHTML = info.error
+      ? `⚠️ ${escapeHtml(info.message)}`
+      : `🔒 Archivio in sola consultazione: in uso da <strong>${escapeHtml(info.by)}</strong> dalle ${formatOraIt(info.since)}. Riprova più tardi per modificare.`;
+    box.style.display = 'flex';
+  }
+  function formatOraIt(iso){
+    try{ return new Date(iso).toLocaleString('it-IT', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit'}); }
+    catch(e){ return iso; }
+  }
+
+  function scheduleDriveSync(){
+    if(!driveConnected || driveReadOnly) return;
+    setDriveStatus('Modifiche in attesa di sincronizzazione…');
+    clearTimeout(syncDebounceTimer);
+    syncDebounceTimer = setTimeout(async ()=>{
+      setDriveStatus('Sincronizzazione con Drive in corso…');
+      try{
+        await caricaDatiSuDrive();
+        setDriveStatus('Sincronizzato con Google Drive ✓', 'ok');
+      }catch(e){
+        console.error('Sync Drive non riuscita:', e);
+        setDriveStatus('Errore di sincronizzazione: ' + e.message + ' — le modifiche restano salvate in locale su questo dispositivo.', 'error');
+      }
+    }, SYNC_DEBOUNCE_MS);
+  }
+  async function flushDriveSyncNow(){
+    if(!driveConnected || driveReadOnly) return;
+    clearTimeout(syncDebounceTimer);
+    setDriveStatus('Sincronizzazione con Drive in corso…');
+    await caricaDatiSuDrive();
+    setDriveStatus('Sincronizzato con Google Drive ✓', 'ok');
+  }
+
+  // ---- Connessione (pulsante "Connetti Google Drive") ----
+  async function connettiGoogleDrive(){
+    if(!driveConfigured()){
+      alert('Inserisci prima il Client ID Google e salva le impostazioni.');
+      return;
+    }
+    setDriveStatus('Accesso a Google in corso…');
+    try{
+      await requestAccessToken(true);
+    }catch(e){
+      setDriveStatus('Accesso Google non riuscito: ' + e.message, 'error');
+      return;
+    }
+    setDriveStatus('Verifico se l\'archivio è in uso altrove…');
+    let lockInfo;
+    try{
+      lockInfo = await checkAndAcquireLock();
+    }catch(e){
+      setDriveStatus('Errore di connessione a Drive: ' + e.message, 'error');
+      return;
+    }
+    if(lockInfo.locked){
+      driveReadOnly = true;
+      driveConnected = true;
+      renderLockAlert(lockInfo);
+      setDriveStatus(`Connesso, ma in sola consultazione (archivio in uso da ${lockInfo.by}). I dati mostrati sono quelli salvati sull'ultimo dispositivo che ha sincronizzato.`, 'error');
+      try{
+        const remoto = await scaricaDatiDaDrive();
+        if(remoto){
+          veicoli = remoto.veicoli || [];
+          veicoli.forEach(v=>{ if(v.foto && !Array.isArray(v.foto)) v.foto=[v.foto]; if(!v.foto) v.foto=[]; });
+          templateFields = remoto.templateFields || [];
+          renderGrid();
+        }
+      }catch(e){ console.error(e); }
+      aggiornaVisibilitaControlliDrive();
+      return;
+    }
+    driveReadOnly = false;
+    driveConnected = true;
+    renderLockAlert(null);
+    setDriveStatus('Scarico l\'archivio da Drive…');
+    try{
+      const remoto = await scaricaDatiDaDrive();
+      if(remoto){
+        veicoli = remoto.veicoli || [];
+        veicoli.forEach(v=>{ if(v.foto && !Array.isArray(v.foto)) v.foto=[v.foto]; if(!v.foto) v.foto=[]; });
+        templateFields = remoto.templateFields || [];
+        // allinea la copia locale (IndexedDB) a quella scaricata da Drive
+        await dbClearVeicoli();
+        for(const v of veicoli){ await dbPutVeicolo(v); }
+        await persistTemplateFields();
+      } else {
+        // nessun dato su Drive ancora: carica quello che c'è in locale
+        await caricaDatiSuDrive();
+      }
+      renderGrid();
+      startLockHeartbeat();
+      setDriveStatus('Connesso e sincronizzato con Google Drive ✓', 'ok');
+    }catch(e){
+      console.error(e);
+      setDriveStatus('Errore durante lo scaricamento da Drive: ' + e.message, 'error');
+    }
+    aggiornaVisibilitaControlliDrive();
+  }
+
+  async function terminaSessioneDrive(){
+    if(!driveConnected){ return; }
+    setDriveStatus('Chiusura sessione in corso…');
+    try{ if(!driveReadOnly) await flushDriveSyncNow(); }catch(e){ console.error(e); }
+    await releaseLock();
+    driveConnected = false;
+    driveReadOnly = false;
+    renderLockAlert(null);
+    setDriveStatus('Sessione chiusa: l\'archivio è di nuovo libero per gli altri dispositivi.');
+    aggiornaVisibilitaControlliDrive();
+  }
+
+  function aggiornaVisibilitaControlliDrive(){
+    document.getElementById('btn-drive-sync-now').style.display = (driveConnected && !driveReadOnly) ? 'inline-block' : 'none';
+    document.getElementById('btn-drive-end-session').style.display = driveConnected ? 'inline-block' : 'none';
+    document.getElementById('btn-save').disabled = driveReadOnly;
+    if(driveReadOnly){
+      document.getElementById('btn-save').title = 'Archivio in sola consultazione: un altro dispositivo lo sta usando.';
+    } else {
+      document.getElementById('btn-save').title = '';
+    }
+  }
+
+  // Best-effort: prova a liberare il lucchetto se si chiude la scheda (non garantito dal browser)
+  window.addEventListener('beforeunload', ()=>{
+    if(driveConnected && driveLockFileId && accessToken){
+      try{
+        navigator.sendBeacon(
+          `https://www.googleapis.com/drive/v3/files/${driveLockFileId}?access_token=${accessToken}&method=DELETE`
+        );
+      }catch(e){ /* best effort */ }
+    }
+  });
+
+  // ---- Collegamento UI Impostazioni ----
+  document.getElementById('f-device-label').value = getDeviceLabel();
+  document.getElementById('f-client-id').value = getClientId();
+  function aggiornaStatoConfigurazione(){
+    if(!driveConfigured()){
+      setDriveStatus('Sincronizzazione non configurata — l\'app funziona comunque in locale su questo dispositivo.');
+    } else if(!driveConnected){
+      setDriveStatus('Configurato, non ancora connesso in questa sessione. Premi "Connetti Google Drive".');
+    }
+  }
+  document.getElementById('btn-save-drive-settings').addEventListener('click', ()=>{
+    localStorage.setItem('garage_device_label_v1', document.getElementById('f-device-label').value.trim());
+    localStorage.setItem('garage_drive_client_id_v1', document.getElementById('f-client-id').value.trim());
+    tokenClient = null; // forza la ricreazione col nuovo client id, se cambiato
+    showToast('Impostazioni salvate');
+    aggiornaStatoConfigurazione();
+  });
+  document.getElementById('btn-drive-connect').addEventListener('click', connettiGoogleDrive);
+  document.getElementById('btn-drive-sync-now').addEventListener('click', async ()=>{
+    try{ await flushDriveSyncNow(); }
+    catch(e){ setDriveStatus('Errore di sincronizzazione: ' + e.message, 'error'); }
+  });
+  document.getElementById('btn-drive-end-session').addEventListener('click', terminaSessioneDrive);
+  aggiornaStatoConfigurazione();
+
+  // ---------- Toast ----------
+  let toastTimer = null;
+  function showToast(msg){
+    const toast = document.getElementById('toast');
+    document.getElementById('toast-msg').textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=> toast.classList.remove('show'), 2600);
+  }
+
+  // ---------- Tabs ----------
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  tabBtns.forEach(btn=>{
+    btn.addEventListener('click', ()=> switchTab(btn.dataset.tab));
+  });
+  function switchTab(tab){
+    tabBtns.forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+    document.getElementById('view-archivio').classList.toggle('active', tab==='archivio');
+    document.getElementById('view-aggiungi').classList.toggle('active', tab==='aggiungi');
+    document.getElementById('view-impostazioni').classList.toggle('active', tab==='impostazioni');
+    if(tab==='aggiungi' && editingId===null) resetForm();
+    if(tab==='archivio') renderGrid();
+  }
+
+  // ---------- Type switch ----------
+  let currentType = 'auto';
+  const typeOptEls = document.querySelectorAll('.type-opt');
+  typeOptEls.forEach(el=> el.addEventListener('click', ()=> setType(el.dataset.type)));
+  function setType(t){
+    currentType = t;
+    typeOptEls.forEach(el=> el.classList.toggle('selected', el.dataset.type===t));
+  }
+  function tipoLabel(tipo){
+    return tipo==='moto' ? 'Moto' : (tipo==='altro' ? 'Altro' : 'Auto');
+  }
+  function tipoIconSvg(tipo){
+    if(tipo==='moto') return '<circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 17.5H9l3-7h4l2 4M9 10.5 6 6H3"/>';
+    if(tipo==='altro') return '<rect x="2" y="9" width="13" height="7"/><path d="M15 11h4l3 3v2h-7z"/><circle cx="6.5" cy="18.5" r="1.8"/><circle cx="16.5" cy="18.5" r="1.8"/>';
+    return '<path d="M5 17h14M5 17a2 2 0 1 0 4 0 2 2 0 1 0-4 0zm10 0a2 2 0 1 0 4 0 2 2 0 1 0-4 0zM3 17V9.5a1 1 0 0 1 .3-.7l2.2-2.2A2 2 0 0 1 6.9 6h10.2a2 2 0 0 1 1.5.7l2.1 2.3a1 1 0 0 1 .3.7V17"/>';
+  }
+
+  // ---------- Vincolo: "Ultima accensione" attivo solo se Motore funzionante = Sì ----------
+  const motoreFunzionanteSelect = document.getElementById('f-motore-funzionante');
+  const ultimaAccensioneInput = document.getElementById('f-ultima-accensione');
+  motoreFunzionanteSelect.addEventListener('change', aggiornaVincoloAccensione);
+  function aggiornaVincoloAccensione(){
+    const attivo = motoreFunzionanteSelect.value === 'si';
+    ultimaAccensioneInput.disabled = !attivo;
+    if(!attivo) ultimaAccensioneInput.value = '';
+  }
+
+  // ---------- Compressione automatica immagini ----------
+  // Se una foto supera ~1.2 MB viene ridimensionata/ricompressa in JPEG, così da restare
+  // leggera senza bloccare il caricamento con un limite rigido.
+  function compressImageFile(file, opts){
+    const targetBytes = (opts && opts.targetBytes) || 1200000;
+    const maxDimension = (opts && opts.maxDimension) || 1920;
+    return new Promise((resolve)=>{
+      const reader = new FileReader();
+      reader.onload = (ev)=>{
+        if(file.size <= targetBytes){ resolve(ev.target.result); return; }
+        const img = new Image();
+        img.onload = ()=>{
+          let {width, height} = img;
+          const scale = Math.min(1, maxDimension / Math.max(width, height));
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+          const canvas = document.createElement('canvas');
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          const estBytes = (str)=> Math.round(str.length * 0.75);
+          let quality = 0.85;
+          let dataUrl = canvas.toDataURL('image/jpeg', quality);
+          let attempts = 0;
+          while(estBytes(dataUrl) > targetBytes && quality > 0.35 && attempts < 6){
+            quality -= 0.1;
+            dataUrl = canvas.toDataURL('image/jpeg', quality);
+            attempts++;
+          }
+          resolve(dataUrl);
+        };
+        img.onerror = ()=> resolve(ev.target.result); // fallback: usa il file originale
+        img.src = ev.target.result;
+      };
+      reader.onerror = ()=> resolve(null);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // ---------- Photo upload (multiplo) ----------
+  const photoInput = document.getElementById('f-foto');
+  photoInput.addEventListener('change', (e)=>{
+    const files = Array.from(e.target.files || []);
+    files.forEach(file=>{
+      if(currentFotos.length >= MAX_PHOTOS){
+        showToast(`Massimo ${MAX_PHOTOS} foto per veicolo.`);
+        return;
+      }
+      compressImageFile(file).then(dataUrl=>{
+        if(!dataUrl) return;
+        currentFotos.push(dataUrl);
+        renderPhotoThumbs();
+      });
+    });
+    photoInput.value = '';
+  });
+
+  function renderPhotoThumbs(){
+    const wrap = document.getElementById('photo-thumbs');
+    let html = currentFotos.map((src, i)=>`
+      <div class="photo-thumb">
+        <img src="${src}">
+        ${i===0
+          ? '<div class="cover-tag">Copertina</div>'
+          : `<button type="button" class="thumb-cover" data-idx="${i}" title="Imposta come copertina">★</button>`}
+        <button type="button" class="thumb-remove" data-idx="${i}" title="Rimuovi foto">✕</button>
+      </div>
+    `).join('');
+    if(currentFotos.length < MAX_PHOTOS){
+      html += `<div class="photo-add-tile" id="photo-add-tile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="m21 15-5-5L5 19"/></svg>
+        <span style="font-size:11px;">Aggiungi</span>
+      </div>`;
+    }
+    wrap.innerHTML = html;
+    const addTile = document.getElementById('photo-add-tile');
+    if(addTile) addTile.addEventListener('click', ()=> photoInput.click());
+    wrap.querySelectorAll('.thumb-remove').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        currentFotos.splice(Number(btn.dataset.idx), 1);
+        renderPhotoThumbs();
+      });
+    });
+    wrap.querySelectorAll('.thumb-cover').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const idx = Number(btn.dataset.idx);
+        const [scelta] = currentFotos.splice(idx, 1);
+        currentFotos.unshift(scelta);
+        renderPhotoThumbs();
+      });
+    });
+  }
+  function clearPhotoPreview(){
+    currentFotos = [];
+    renderPhotoThumbs();
+  }
+
+  // ---------- Documenti (libretto circolazione + libretto uso/manutenzione) ----------
+  const MAX_DOC_SIZE = 5 * 1024 * 1024; // 5 MB
+  let currentLibrettoCircFoto = null;
+  let currentLibrettoManutenzione = null; // {name, dataUrl, type}
+
+  const docCircInput = document.getElementById('f-libretto-circolazione-foto');
+  document.getElementById('doc-circolazione-empty').addEventListener('click', ()=> docCircInput.click());
+  document.getElementById('doc-circolazione-filled').addEventListener('click', (e)=>{
+    if(e.target.id !== 'doc-circolazione-remove') docCircInput.click();
+  });
+  document.getElementById('doc-circolazione-remove').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    currentLibrettoCircFoto = null;
+    renderDocCircolazione();
+  });
+  docCircInput.addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    compressImageFile(file).then(dataUrl=>{
+      if(!dataUrl) return;
+      currentLibrettoCircFoto = {name:file.name, dataUrl};
+      renderDocCircolazione();
+    });
+  });
+  function renderDocCircolazione(){
+    const empty = document.getElementById('doc-circolazione-empty');
+    const filled = document.getElementById('doc-circolazione-filled');
+    if(currentLibrettoCircFoto){
+      empty.style.display = 'none';
+      filled.style.display = 'flex';
+      document.getElementById('doc-circolazione-thumb').src = currentLibrettoCircFoto.dataUrl;
+      document.getElementById('doc-circolazione-name').textContent = currentLibrettoCircFoto.name;
+    } else {
+      empty.style.display = 'flex';
+      filled.style.display = 'none';
+    }
+    docCircInput.value = '';
+  }
+
+  const docManInput = document.getElementById('f-libretto-uso-manutenzione');
+  document.getElementById('doc-manutenzione-empty').addEventListener('click', ()=> docManInput.click());
+  document.getElementById('doc-manutenzione-filled').addEventListener('click', (e)=>{
+    if(e.target.id !== 'doc-manutenzione-remove') docManInput.click();
+  });
+  document.getElementById('doc-manutenzione-remove').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    currentLibrettoManutenzione = null;
+    renderDocManutenzione();
+  });
+  docManInput.addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    if(file.type && file.type.startsWith('image/')){
+      compressImageFile(file).then(dataUrl=>{
+        if(!dataUrl) return;
+        currentLibrettoManutenzione = {name:file.name, dataUrl, type:file.type};
+        renderDocManutenzione();
+      });
+      return;
+    }
+    // File non immagine (es. PDF): non comprimibile lato client, si applica solo un limite di dimensione
+    if(file.size > MAX_DOC_SIZE){ alert('Il file supera i 5 MB: scegli un file più leggero (i PDF non possono essere compressi automaticamente).'); return; }
+    const reader = new FileReader();
+    reader.onload = (ev)=>{
+      currentLibrettoManutenzione = {name:file.name, dataUrl:ev.target.result, type:file.type};
+      renderDocManutenzione();
+    };
+    reader.readAsDataURL(file);
+  });
+  function renderDocManutenzione(){
+    const empty = document.getElementById('doc-manutenzione-empty');
+    const filled = document.getElementById('doc-manutenzione-filled');
+    if(currentLibrettoManutenzione){
+      empty.style.display = 'none';
+      filled.style.display = 'flex';
+      document.getElementById('doc-manutenzione-name').textContent = currentLibrettoManutenzione.name;
+    } else {
+      empty.style.display = 'flex';
+      filled.style.display = 'none';
+    }
+    docManInput.value = '';
+  }
+
+  // ---------- Custom fields ----------
+  const customFieldsList = document.getElementById('custom-fields-list');
+  document.getElementById('btn-add-field').addEventListener('click', ()=> addCustomFieldRow());
+
+  function addCustomFieldRow(label, value){
+    const row = document.createElement('div');
+    row.className = 'custom-field-row';
+    row.innerHTML = `
+      <input type="text" class="cf-label" placeholder="Nome campo (es. Assicurazione)" value="${label ? escapeHtml(label) : ''}">
+      <input type="text" class="cf-value" placeholder="Valore (es. Scade a marzo)" value="${value ? escapeHtml(value) : ''}">
+      <button type="button" class="cf-remove" title="Rimuovi campo">✕</button>
+    `;
+    row.querySelector('.cf-remove').addEventListener('click', ()=> row.remove());
+    customFieldsList.appendChild(row);
+  }
+  function clearCustomFields(){
+    customFieldsList.innerHTML = '';
+  }
+  function getCustomFieldsFromForm(){
+    const rows = customFieldsList.querySelectorAll('.custom-field-row');
+    const out = [];
+    rows.forEach(r=>{
+      const label = r.querySelector('.cf-label').value.trim();
+      const value = r.querySelector('.cf-value').value.trim();
+      if(label || value) out.push({label, value});
+    });
+    return out;
+  }
+
+  // ---------- Form ----------
+  function resetForm(){
+    editingId = null;
+    setType('auto');
+    ['f-marca','f-modello','f-anno','f-targa','f-colore','f-cilindrata','f-km','f-note',
+     'f-telaio','f-intestatario','f-revisione','f-revisione-data','f-ultima-accensione','f-acquistato-da','f-acquistato-il'].forEach(id=>{
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('f-alimentazione').value = '';
+    document.getElementById('f-condizioni').value = '';
+    document.getElementById('f-motore-funzionante').value = '';
+    document.getElementById('f-motore-da-verificare').checked = false;
+    document.getElementById('f-libretto-circolazione').value = '';
+    aggiornaVincoloAccensione();
+    currentLibrettoCircFoto = null;
+    renderDocCircolazione();
+    currentLibrettoManutenzione = null;
+    renderDocManutenzione();
+    clearPhotoPreview();
+    clearCustomFields();
+    templateFields.forEach(label => addCustomFieldRow(label, ''));
+    document.getElementById('form-title').textContent = 'Nuovo veicolo';
+    document.getElementById('form-hint').textContent = 'SCHEDA TECNICA';
+    document.getElementById('btn-save').textContent = 'Salva veicolo';
+    document.getElementById('btn-cancel').style.display = 'none';
+  }
+
+  function fillFormForEdit(v){
+    editingId = v.id;
+    setType(v.tipo);
+    document.getElementById('f-marca').value = v.marca || '';
+    document.getElementById('f-modello').value = v.modello || '';
+    document.getElementById('f-anno').value = v.anno || '';
+    document.getElementById('f-targa').value = v.targa || '';
+    document.getElementById('f-colore').value = v.colore || '';
+    document.getElementById('f-cilindrata').value = v.cilindrata || '';
+    document.getElementById('f-km').value = v.km || '';
+    document.getElementById('f-alimentazione').value = v.alimentazione || '';
+    document.getElementById('f-note').value = v.note || '';
+    document.getElementById('f-telaio').value = v.telaio || '';
+    document.getElementById('f-intestatario').value = v.intestatario || '';
+    document.getElementById('f-acquistato-da').value = v.acquistatoDa || '';
+    document.getElementById('f-acquistato-il').value = v.acquistatoIl || '';
+    document.getElementById('f-condizioni').value = v.condizioni || '';
+    document.getElementById('f-revisione').value = v.revisione || '';
+    document.getElementById('f-revisione-data').value = v.revisioneData || '';
+    document.getElementById('f-motore-funzionante').value = v.motoreFunzionante || '';
+    document.getElementById('f-motore-da-verificare').checked = !!v.motoreDaVerificare;
+    aggiornaVincoloAccensione();
+    document.getElementById('f-ultima-accensione').value = v.motoreFunzionante==='si' ? (v.ultimaAccensione || '') : '';
+    document.getElementById('f-libretto-circolazione').value = v.librettoCircolazionePresente || '';
+    currentLibrettoCircFoto = v.librettoCircolazioneFoto || null;
+    renderDocCircolazione();
+    currentLibrettoManutenzione = v.librettoUsoManutenzione || null;
+    renderDocManutenzione();
+    if(v.foto && v.foto.length){ currentFotos = v.foto.slice(); } else { currentFotos = []; }
+    renderPhotoThumbs();
+    clearCustomFields();
+    templateFields.forEach(label=>{
+      const existing = (v.campiPersonalizzati || []).find(cf=>cf.label===label);
+      addCustomFieldRow(label, existing ? existing.value : '');
+    });
+    (v.campiPersonalizzati || []).forEach(cf=>{
+      if(!templateFields.includes(cf.label)) addCustomFieldRow(cf.label, cf.value);
+    });
+    document.getElementById('form-title').textContent = 'Modifica veicolo';
+    document.getElementById('form-hint').textContent = 'SCHEDA TECNICA';
+    document.getElementById('btn-save').textContent = 'Salva modifiche';
+    document.getElementById('btn-cancel').style.display = 'inline-block';
+    switchTab('aggiungi');
+  }
+
+  document.getElementById('btn-cancel').addEventListener('click', resetForm);
+
+  document.getElementById('btn-save').addEventListener('click', async ()=>{
+    if(driveReadOnly){
+      alert('L\'archivio è al momento in sola consultazione (in uso da un altro dispositivo). Riprova più tardi.');
+      return;
+    }
+    const marca = document.getElementById('f-marca').value.trim();
+    const modello = document.getElementById('f-modello').value.trim();
+    if(!marca || !modello){
+      alert('Inserisci almeno marca e modello.');
+      return;
+    }
+
+    // Unicità targa e telaio (evita doppioni)
+    const targaVal = document.getElementById('f-targa').value.trim().toUpperCase();
+    const telaioVal = document.getElementById('f-telaio').value.trim();
+    if(targaVal){
+      const dup = veicoli.find(x=> x.id!==editingId && (x.targa||'').toUpperCase()===targaVal);
+      if(dup){
+        alert(`Questa targa è già assegnata a "${dup.marca} ${dup.modello}". Correggila prima di salvare.`);
+        return;
+      }
+    }
+    if(telaioVal){
+      const dup = veicoli.find(x=> x.id!==editingId && (x.telaio||'').toUpperCase()===telaioVal.toUpperCase());
+      if(dup){
+        alert(`Questo numero di telaio è già assegnato a "${dup.marca} ${dup.modello}". Correggilo prima di salvare.`);
+        return;
+      }
+    }
+
+    const formFields = getCustomFieldsFromForm();
+
+    // Nuovi campi personalizzati -> diventano standard per tutti i veicoli
+    const newLabels = formFields.map(f=>f.label).filter(l=> l && !templateFields.includes(l));
+    const vehiclesToBackfill = [];
+    if(newLabels.length){
+      newLabels.forEach(l=> templateFields.push(l));
+      veicoli.forEach(vh=>{
+        if(vh.id === editingId) return; // verrà sovrascritto sotto con i valori del form
+        vh.campiPersonalizzati = vh.campiPersonalizzati || [];
+        let cambiato = false;
+        newLabels.forEach(l=>{
+          if(!vh.campiPersonalizzati.some(cf=>cf.label===l)){
+            vh.campiPersonalizzati.push({label:l, value:''});
+            cambiato = true;
+          }
+        });
+        if(cambiato) vehiclesToBackfill.push(vh);
+      });
+    }
+
+    const v = {
+      id: editingId || (Date.now().toString(36) + Math.random().toString(36).slice(2,7)),
+      tipo: currentType,
+      marca, modello,
+      anno: document.getElementById('f-anno').value.trim(),
+      targa: targaVal,
+      colore: document.getElementById('f-colore').value.trim(),
+      cilindrata: document.getElementById('f-cilindrata').value.trim(),
+      km: document.getElementById('f-km').value.trim(),
+      alimentazione: document.getElementById('f-alimentazione').value,
+      note: document.getElementById('f-note').value.trim(),
+      telaio: telaioVal,
+      intestatario: document.getElementById('f-intestatario').value.trim(),
+      acquistatoDa: document.getElementById('f-acquistato-da').value.trim(),
+      acquistatoIl: document.getElementById('f-acquistato-il').value,
+      condizioni: document.getElementById('f-condizioni').value,
+      revisione: document.getElementById('f-revisione').value,
+      revisioneData: document.getElementById('f-revisione-data').value,
+      motoreFunzionante: document.getElementById('f-motore-funzionante').value,
+      motoreDaVerificare: document.getElementById('f-motore-da-verificare').checked,
+      ultimaAccensione: document.getElementById('f-motore-funzionante').value==='si' ? document.getElementById('f-ultima-accensione').value : '',
+      librettoCircolazionePresente: document.getElementById('f-libretto-circolazione').value,
+      librettoCircolazioneFoto: currentLibrettoCircFoto,
+      librettoUsoManutenzione: currentLibrettoManutenzione,
+      campiPersonalizzati: formFields,
+      foto: currentFotos.slice(),
+      dataInserimento: editingId ? (veicoli.find(x=>x.id===editingId)||{}).dataInserimento || Date.now() : Date.now()
+    };
+
+    try{
+      if(newLabels.length){
+        await persistTemplateFields();
+        for(const vh of vehiclesToBackfill){ await dbPutVeicolo(vh); }
+      }
+      await dbPutVeicolo(v);
+    }catch(err){
+      console.error('Errore di salvataggio:', err);
+      alert(
+        'Salvataggio non riuscito: ' + (err && err.message ? err.message : 'errore di scrittura nell\'archivio locale del browser.') +
+        '\n\nLe modifiche potrebbero non essere state salvate. Ricarico i dati per essere sicuri che tutto sia coerente.'
+      );
+      await load();
+      renderGrid();
+      return;
+    }
+
+    if(editingId){
+      const idx = veicoli.findIndex(x=>x.id===editingId);
+      if(idx>-1) veicoli[idx] = v;
+    } else {
+      veicoli.unshift(v);
+    }
+    scheduleDriveSync();
+    resetForm();
+    renderGrid();
+    switchTab('archivio');
+    showToast('Veicolo salvato correttamente ✓');
+  });
+
+  // ---------- Archivio: filter/search ----------
+  document.querySelectorAll('.chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+      chip.classList.add('active');
+      currentFilter = chip.dataset.filter;
+      renderGrid();
+    });
+  });
+  document.getElementById('search-input').addEventListener('input', (e)=>{
+    currentSearch = e.target.value.trim().toLowerCase();
+    renderGrid();
+  });
+  document.getElementById('empty-cta').addEventListener('click', ()=> switchTab('aggiungi'));
+
+  // ---------- Backup: esporta / importa / email ----------
+  function esportaBackup(){
+    if(veicoli.length === 0){
+      alert('L\'archivio è vuoto, non c\'è nulla da esportare.');
+      return null;
+    }
+    const dataStr = JSON.stringify(veicoli, null, 2);
+    const blob = new Blob([dataStr], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const today = new Date().toISOString().slice(0,10);
+    const filename = `garage-backup-${today}.json`;
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    return filename;
+  }
+  document.getElementById('btn-export').addEventListener('click', esportaBackup);
+
+  const importInput = document.getElementById('import-input');
+  document.getElementById('btn-import').addEventListener('click', ()=> importInput.click());
+  importInput.addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev)=>{
+      let imported;
+      try{
+        imported = JSON.parse(ev.target.result);
+        if(!Array.isArray(imported)) throw new Error('formato non valido');
+      }catch(err){
+        alert('Il file selezionato non è un backup valido.');
+        importInput.value = '';
+        return;
+      }
+      const sostituisci = confirm(
+        `Il file contiene ${imported.length} veicol${imported.length===1?'o':'i'}.\n\n` +
+        `OK = sostituisci l'intero archivio attuale con quello del file.\n` +
+        `Annulla = unisci con l'archivio attuale (i veicoli con lo stesso ID vengono aggiornati, gli altri restano).`
+      );
+      if(driveReadOnly){
+        alert('L\'archivio è al momento in sola consultazione (in uso da un altro dispositivo). Riprova più tardi.');
+        importInput.value = '';
+        return;
+      }
+      try{
+        if(sostituisci){
+          await dbClearVeicoli();
+          for(const iv of imported){ await dbPutVeicolo(iv); }
+        } else {
+          for(const iv of imported){ await dbPutVeicolo(iv); }
+        }
+      }catch(err){
+        console.error('Errore di importazione:', err);
+        alert('Importazione non riuscita: ' + (err && err.message ? err.message : 'errore di scrittura nell\'archivio locale.'));
+        await load();
+        renderGrid();
+        importInput.value = '';
+        return;
+      }
+      await load();
+      renderGrid();
+      scheduleDriveSync();
+      importInput.value = '';
+      alert('Importazione completata.');
+    };
+    reader.readAsText(file);
+  });
+
+  // ---------- Riepilogo tabellare (colonne comuni a Excel e PDF) ----------
+  function costruisciRigheRiepilogo(){
+    const customLabels = [...new Set(veicoli.flatMap(v => (v.campiPersonalizzati||[]).map(cf=>cf.label).filter(Boolean)))];
+    const intestazioni = [
+      'Tipo','Marca','Modello','Anno','Targa','Colore','Cilindrata (cc)','Chilometri','Alimentazione',
+      'N. Telaio','Intestatario','Acquistato da','Acquistato il','Condizioni','Data ultima revisione','Scadenza revisione',
+      'Motore funzionante','Ultima accensione','Motore da verificare',
+      'Libretto circolazione','Note', ...customLabels
+    ];
+    const righe = veicoli.map(v=>{
+      const base = [
+        tipoLabel(v.tipo), v.marca||'', v.modello||'', v.anno||'', v.targa||'', v.colore||'',
+        v.cilindrata||'', v.km||'', v.alimentazione||'', v.telaio||'', v.intestatario||'',
+        v.acquistatoDa||'', formatDateIt(v.acquistatoIl), v.condizioni||'',
+        formatDateIt(v.revisioneData), formatDateIt(v.revisione), v.motoreFunzionante==='si'?'Sì':(v.motoreFunzionante==='no'?'No':''),
+        formatDateIt(v.ultimaAccensione), v.motoreDaVerificare ? 'Sì' : 'No',
+        v.librettoCircolazionePresente==='si'?'Presente':(v.librettoCircolazionePresente==='no'?'Non presente':''),
+        v.note||''
+      ];
+      const custom = customLabels.map(l=>{
+        const found = (v.campiPersonalizzati||[]).find(cf=>cf.label===l);
+        return found ? (found.value||'') : '';
+      });
+      return [...base, ...custom];
+    });
+    return {intestazioni, righe};
+  }
+
+  // ---------- Esporta Excel (con fallback CSV se offline) ----------
+  document.getElementById('btn-export-excel').addEventListener('click', ()=>{
+    if(veicoli.length === 0){ alert('L\'archivio è vuoto, non c\'è nulla da esportare.'); return; }
+    const {intestazioni, righe} = costruisciRigheRiepilogo();
+    const today = new Date().toISOString().slice(0,10);
+
+    if(typeof XLSX !== 'undefined'){
+      const ws = XLSX.utils.aoa_to_sheet([intestazioni, ...righe]);
+      ws['!cols'] = intestazioni.map(()=>({wch:16}));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Archivio veicoli');
+      XLSX.writeFile(wb, `garage-poppo-riepilogo-${today}.xlsx`);
+      showToast('Excel esportato ✓');
+    } else {
+      // Fallback offline: CSV con separatore ; e BOM, compatibile con Excel in italiano
+      const escapeCsv = (val)=> `"${String(val).replace(/"/g,'""')}"`;
+      const csvRows = [intestazioni, ...righe].map(r => r.map(escapeCsv).join(';'));
+      const csvContent = '\uFEFF' + csvRows.join('\r\n');
+      const blob = new Blob([csvContent], {type:'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `garage-poppo-riepilogo-${today}.csv`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Nessuna connessione: esportato come CSV (si apre comunque in Excel)');
+    }
+  });
+
+  // ---------- Esporta PDF (riepilogo stampabile, senza foto) ----------
+  document.getElementById('btn-export-pdf').addEventListener('click', ()=>{
+    if(veicoli.length === 0){ alert('L\'archivio è vuoto, non c\'è nulla da esportare.'); return; }
+    const {intestazioni, righe} = costruisciRigheRiepilogo();
+    const today = new Date().toLocaleDateString('it-IT');
+    const numAuto = veicoli.filter(v=>v.tipo==='auto').length;
+    const numMoto = veicoli.filter(v=>v.tipo==='moto').length;
+    const numAltro = veicoli.filter(v=>v.tipo==='altro').length;
+
+    const tableHead = intestazioni.map(h=>`<th>${escapeHtml(h)}</th>`).join('');
+    const tableRows = righe.map(r => `<tr>${r.map(c=>`<td>${escapeHtml(String(c))}</td>`).join('')}</tr>`).join('');
+
+    const printWin = window.open('', '_blank');
+    printWin.document.write(`
+      <!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><title>Garage Poppo — Riepilogo archivio</title>
+      <style>
+        @page{ size: A4 landscape; margin:10mm; }
+        body{font-family:Arial, sans-serif; margin:0; color:#1a1a1a;}
+        h1{font-size:18px; margin:0 0 2px;}
+        .sub{font-size:11px; color:#666; margin-bottom:4px;}
+        .counts{font-size:11px; color:#333; margin-bottom:14px;}
+        .counts strong{color:#1a1a1a;}
+        table{border-collapse:collapse; width:100%; table-layout:fixed; font-size:7.5px;}
+        th, td{
+          border:1px solid #ccc; padding:3px 4px; text-align:left;
+          word-break:break-word; overflow-wrap:break-word;
+        }
+        th{background:#f0f0f0; font-size:7.5px;}
+        tr:nth-child(even){background:#fafafa;}
+      </style></head><body>
+      <h1>Garage Poppo — Riepilogo archivio veicoli</h1>
+      <div class="sub">Esportato il ${today} — ${veicoli.length} veicol${veicoli.length===1?'o':'i'} totali (foto escluse)</div>
+      <div class="counts">Auto: <strong>${numAuto}</strong> &nbsp;·&nbsp; Moto: <strong>${numMoto}</strong> &nbsp;·&nbsp; Altro: <strong>${numAltro}</strong></div>
+      <table><thead><tr>${tableHead}</tr></thead><tbody>${tableRows}</tbody></table>
+      </body></html>
+    `);
+    printWin.document.close();
+    printWin.focus();
+    setTimeout(()=>{ printWin.print(); }, 300);
+  });
+
+  // ---------- Promemoria calendario (.ics) per le revisioni ----------
+  function addDaysToIsoDate(iso, days){
+    const d = new Date(iso+'T00:00:00');
+    d.setDate(d.getDate()+days);
+    return d.toISOString().slice(0,10);
+  }
+  function icsTimestampNow(){
+    return new Date().toISOString().replace(/[-:]/g,'').split('.')[0]+'Z';
+  }
+  function escapeIcs(str){
+    return String(str).replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');
+  }
+  document.getElementById('btn-export-ics').addEventListener('click', ()=>{
+    const conRevisione = veicoli.filter(v=>v.revisione);
+    if(conRevisione.length === 0){
+      alert('Nessun veicolo ha una data di scadenza revisione impostata: non c\'è nulla da esportare nel calendario.');
+      return;
+    }
+    const righe = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Garage Poppo//Promemoria Revisioni//IT','CALSCALE:GREGORIAN'];
+    conRevisione.forEach(v=>{
+      const dtStart = v.revisione.replace(/-/g,'');
+      const dtEnd = addDaysToIsoDate(v.revisione, 1).replace(/-/g,'');
+      const titolo = `Revisione in scadenza: ${v.marca} ${v.modello}${v.targa ? ' ('+v.targa+')' : ''}`;
+      righe.push('BEGIN:VEVENT');
+      righe.push(`UID:revisione-${v.id}@garage-poppo`);
+      righe.push(`DTSTAMP:${icsTimestampNow()}`);
+      righe.push(`DTSTART;VALUE=DATE:${dtStart}`);
+      righe.push(`DTEND;VALUE=DATE:${dtEnd}`);
+      righe.push(`SUMMARY:${escapeIcs(titolo)}`);
+      righe.push(`DESCRIPTION:${escapeIcs('Promemoria generato da Garage Poppo.')}`);
+      righe.push('BEGIN:VALARM');
+      righe.push('ACTION:DISPLAY');
+      righe.push('DESCRIPTION:Revisione in scadenza tra 30 giorni');
+      righe.push('TRIGGER:-P30D');
+      righe.push('END:VALARM');
+      righe.push('BEGIN:VALARM');
+      righe.push('ACTION:DISPLAY');
+      righe.push('DESCRIPTION:Revisione in scadenza tra 3 giorni');
+      righe.push('TRIGGER:-P3D');
+      righe.push('END:VALARM');
+      righe.push('END:VEVENT');
+    });
+    righe.push('END:VCALENDAR');
+    const icsContent = righe.join('\r\n');
+    const blob = new Blob([icsContent], {type:'text/calendar;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'garage-poppo-revisioni.ics';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast(`File promemoria generato (${conRevisione.length} veicol${conRevisione.length===1?'o':'i'}) — importalo nel tuo calendario`);
+  });
+
+  // ---------- Ordinamento archivio ----------
+  const sortSelect = document.getElementById('sort-select');
+  sortSelect.addEventListener('change', ()=>{ currentSort = sortSelect.value; renderGrid(); });
+  function numCompare(x, y){
+    const xVuoto = (x===undefined || x===null || x==='');
+    const yVuoto = (y===undefined || y===null || y==='');
+    if(xVuoto && yVuoto) return 0;
+    if(xVuoto) return 1;  // i veicoli senza valore vanno sempre in fondo
+    if(yVuoto) return -1;
+    return Number(x) - Number(y);
+  }
+  function compareVeicoli(a, b){
+    switch(currentSort){
+      case 'marca_asc':
+        return (a.marca||'').localeCompare(b.marca||'', 'it', {sensitivity:'base'}) ||
+               (a.modello||'').localeCompare(b.modello||'', 'it', {sensitivity:'base'});
+      case 'modello_asc':
+        return (a.modello||'').localeCompare(b.modello||'', 'it', {sensitivity:'base'}) ||
+               (a.marca||'').localeCompare(b.marca||'', 'it', {sensitivity:'base'});
+      case 'anno_desc': return numCompare(b.anno, a.anno);
+      case 'anno_asc': return numCompare(a.anno, b.anno);
+      case 'km_asc': return numCompare(a.km, b.km);
+      case 'km_desc': return numCompare(b.km, a.km);
+      case 'dataInserimento_desc':
+      default:
+        return (b.dataInserimento||0) - (a.dataInserimento||0);
+    }
+  }
+
+  // ---------- Avviso revisioni in scadenza (entro 30 giorni, incluse quelle già scadute) ----------
+  function computeRevisioniInScadenza(){
+    const oggi = new Date(); oggi.setHours(0,0,0,0);
+    const risultati = [];
+    veicoli.forEach(v=>{
+      if(!v.revisione) return;
+      const scad = new Date(v.revisione + 'T00:00:00');
+      if(isNaN(scad)) return;
+      const diffGiorni = Math.round((scad - oggi) / (1000*60*60*24));
+      if(diffGiorni <= 30) risultati.push({v, diffGiorni});
+    });
+    risultati.sort((a,b)=> a.diffGiorni - b.diffGiorni);
+    return risultati;
+  }
+  function renderRevisionAlert(){
+    const box = document.getElementById('revision-alert');
+    const items = computeRevisioniInScadenza();
+    if(items.length === 0){ box.style.display = 'none'; box.innerHTML = ''; return; }
+    const righe = items.map(({v, diffGiorni})=>{
+      const label = diffGiorni < 0
+        ? `scaduta da ${Math.abs(diffGiorni)} giorn${Math.abs(diffGiorni)===1?'o':'i'}`
+        : (diffGiorni === 0 ? 'scade oggi' : `scade tra ${diffGiorni} giorn${diffGiorni===1?'o':'i'}`);
+      return `<div class="revision-alert-item" data-id="${v.id}">
+        <strong>${escapeHtml(v.marca)} ${escapeHtml(v.modello)}</strong>
+        ${v.targa ? `<span class="ra-plate">${escapeHtml(v.targa)}</span>` : ''}
+        <span class="ra-status ${diffGiorni<0?'overdue':''}">${label} — ${formatDateIt(v.revisione)}</span>
+      </div>`;
+    }).join('');
+    box.innerHTML = `
+      <div class="revision-alert-head">⚠️ Revisioni in scadenza entro 30 giorni (${items.length})</div>
+      <div class="revision-alert-list">${righe}</div>
+    `;
+    box.style.display = 'block';
+    box.querySelectorAll('.revision-alert-item').forEach(el=>{
+      el.addEventListener('click', ()=> openModal(el.dataset.id));
+    });
+  }
+
+  function renderGrid(){
+    renderRevisionAlert();
+    let list = veicoli.slice();
+    if(currentFilter !== 'tutti') list = list.filter(v=>v.tipo===currentFilter);
+    if(currentSearch){
+      list = list.filter(v=>
+        (v.marca||'').toLowerCase().includes(currentSearch) ||
+        (v.modello||'').toLowerCase().includes(currentSearch) ||
+        (v.targa||'').toLowerCase().includes(currentSearch)
+      );
+    }
+    list.sort(compareVeicoli);
+    const grid = document.getElementById('grid');
+    const empty = document.getElementById('empty-state');
+    const countLine = document.getElementById('count-line');
+
+    if(veicoli.length === 0){
+      grid.innerHTML = '';
+      empty.style.display = 'block';
+      document.getElementById('empty-title').textContent = 'Il garage è vuoto';
+      document.getElementById('empty-text').textContent = 'Non hai ancora inserito nessun veicolo. Aggiungi la prima auto o moto per iniziare il tuo archivio.';
+      document.getElementById('empty-cta').style.display = 'inline-block';
+      countLine.textContent = '';
+      return;
+    }
+    if(list.length === 0){
+      grid.innerHTML = '';
+      empty.style.display = 'block';
+      document.getElementById('empty-title').textContent = 'Nessun risultato';
+      document.getElementById('empty-text').textContent = 'Nessun veicolo corrisponde alla ricerca o al filtro selezionato.';
+      document.getElementById('empty-cta').style.display = 'none';
+      countLine.textContent = '';
+      return;
+    }
+    empty.style.display = 'none';
+    countLine.textContent = `${list.length} veicol${list.length===1?'o':'i'} in archivio`;
+
+    grid.innerHTML = list.map(v=>{
+      const fotoArr = Array.isArray(v.foto) ? v.foto : (v.foto ? [v.foto] : []);
+      const photoHtml = fotoArr.length
+        ? `<img src="${fotoArr[0]}" alt="">${fotoArr.length>1 ? `<span class="photo-count">+${fotoArr.length-1}</span>` : ''}`
+        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">${tipoIconSvg(v.tipo)}</svg>`;
+      const metaBits = [];
+      if(v.anno) metaBits.push(v.anno);
+      if(v.colore) metaBits.push(v.colore);
+      if(v.km) metaBits.push(`${Number(v.km).toLocaleString('it-IT')} km`);
+      return `
+        <div class="vcard" data-id="${v.id}">
+          <div class="photo">
+            <span class="type-tag">${tipoLabel(v.tipo)}</span>
+            ${photoHtml}
+          </div>
+          <div class="body">
+            <div class="name">${escapeHtml(v.marca)} ${escapeHtml(v.modello)}<small>${v.alimentazione || ''}</small></div>
+            ${v.targa ? `<div class="plate"><div class="eu">I<br>★</div><div class="num">${escapeHtml(v.targa)}</div></div>` : ''}
+            <div class="meta-row">${metaBits.map(m=>`<span>${escapeHtml(String(m))}</span>`).join('<span>·</span>')}</div>
+          </div>
+        </div>`;
+    }).join('');
+
+    grid.querySelectorAll('.vcard').forEach(card=>{
+      card.addEventListener('click', ()=> openModal(card.dataset.id));
+    });
+  }
+
+  function escapeHtml(str){
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+  function formatDateIt(isoDate){
+    if(!isoDate) return '—';
+    const parts = isoDate.split('-');
+    if(parts.length !== 3) return isoDate;
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+
+  // ---------- Modal ----------
+  const overlay = document.getElementById('overlay');
+  function openModal(id){
+    const v = veicoli.find(x=>x.id===id);
+    if(!v) return;
+    modalVeicoloId = id;
+    modalPhotoIndex = 0;
+    document.getElementById('modal-title').textContent = `${v.marca} ${v.modello}`;
+
+    const fotoArr = Array.isArray(v.foto) ? v.foto : (v.foto ? [v.foto] : []);
+    const photoWrap = document.getElementById('modal-photo-wrap');
+    const thumbsWrap = document.getElementById('gallery-thumbs');
+    const prevBtn = document.getElementById('gallery-prev');
+    const nextBtn = document.getElementById('gallery-next');
+
+    function renderMainPhoto(){
+      document.getElementById('modal-photo').src = fotoArr[modalPhotoIndex];
+      thumbsWrap.querySelectorAll('img').forEach((img,i)=> img.classList.toggle('active', i===modalPhotoIndex));
+    }
+
+    if(fotoArr.length){
+      photoWrap.style.display = 'block';
+      renderMainPhoto();
+      if(fotoArr.length > 1){
+        prevBtn.style.display = 'flex'; nextBtn.style.display = 'flex';
+        thumbsWrap.style.display = 'flex';
+        thumbsWrap.innerHTML = fotoArr.map((src,i)=>`<img src="${src}" data-idx="${i}" class="${i===0?'active':''}">`).join('');
+        thumbsWrap.querySelectorAll('img').forEach(img=>{
+          img.addEventListener('click', ()=>{ modalPhotoIndex = Number(img.dataset.idx); renderMainPhoto(); });
+        });
+      } else {
+        prevBtn.style.display = 'none'; nextBtn.style.display = 'none';
+        thumbsWrap.style.display = 'none'; thumbsWrap.innerHTML = '';
+      }
+    } else {
+      photoWrap.style.display = 'none';
+      thumbsWrap.style.display = 'none'; thumbsWrap.innerHTML = '';
+    }
+
+    prevBtn.onclick = ()=>{ modalPhotoIndex = (modalPhotoIndex - 1 + fotoArr.length) % fotoArr.length; renderMainPhoto(); };
+    nextBtn.onclick = ()=>{ modalPhotoIndex = (modalPhotoIndex + 1) % fotoArr.length; renderMainPhoto(); };
+
+    const plateWrap = document.getElementById('modal-plate-wrap');
+    if(v.targa){ document.getElementById('modal-plate').textContent = v.targa; plateWrap.style.display='inline-flex'; }
+    else { plateWrap.style.display='none'; }
+
+    const details = [
+      ['Tipo', tipoLabel(v.tipo)],
+      ['Anno', v.anno||'—'],
+      ['Colore', v.colore||'—'],
+      ['Cilindrata', v.cilindrata ? v.cilindrata+' cc' : '—'],
+      ['Chilometri', v.km ? Number(v.km).toLocaleString('it-IT')+' km' : '—'],
+      ['Alimentazione', v.alimentazione||'—'],
+      ['N. Telaio', v.telaio||'—'],
+      ['Intestatario', v.intestatario||'—'],
+      ['Acquistato da', v.acquistatoDa||'—'],
+      ['Acquistato il', formatDateIt(v.acquistatoIl)],
+      ['Condizioni', v.condizioni||'—'],
+      ['Data ultima revisione', formatDateIt(v.revisioneData)],
+      ['Scadenza revisione', formatDateIt(v.revisione)],
+      ['Motore funzionante', v.motoreFunzionante==='si'?'Sì':(v.motoreFunzionante==='no'?'No':'—')],
+      ['Ultima accensione', formatDateIt(v.ultimaAccensione)],
+      ['Motore da verificare', v.motoreDaVerificare ? 'Sì' : 'No'],
+      ['Libretto di circolazione', v.librettoCircolazionePresente==='si'?'Presente':(v.librettoCircolazionePresente==='no'?'Non presente':'—')],
+    ];
+    (v.campiPersonalizzati || []).forEach(cf=>{
+      if(cf.label || cf.value) details.push([cf.label || '—', cf.value || '—']);
+    });
+
+    document.getElementById('modal-details').innerHTML = details.map(([k,val])=>
+      `<div class="detail-item"><span>${escapeHtml(String(k))}</span><strong>${escapeHtml(String(val))}</strong></div>`
+    ).join('');
+
+    const docsEl = document.getElementById('modal-docs');
+    let docsHtml = '';
+    if(v.librettoCircolazioneFoto){
+      docsHtml += `<a class="modal-doc-link" href="${v.librettoCircolazioneFoto.dataUrl}" target="_blank" rel="noopener">
+        <img src="${v.librettoCircolazioneFoto.dataUrl}"> Foto libretto circolazione</a>`;
+    }
+    if(v.librettoUsoManutenzione){
+      docsHtml += `<a class="modal-doc-link" href="${v.librettoUsoManutenzione.dataUrl}" target="_blank" rel="noopener" download="${escapeHtml(v.librettoUsoManutenzione.name)}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+        ${escapeHtml(v.librettoUsoManutenzione.name)}</a>`;
+    }
+    if(docsHtml){ docsEl.innerHTML = docsHtml; docsEl.style.display = 'flex'; }
+    else { docsEl.innerHTML = ''; docsEl.style.display = 'none'; }
+
+    const noteEl = document.getElementById('modal-note');
+    if(v.note){ noteEl.textContent = v.note; noteEl.style.display='block'; }
+    else { noteEl.style.display='none'; }
+
+    overlay.classList.add('active');
+  }
+  document.getElementById('modal-close').addEventListener('click', closeModal);
+  overlay.addEventListener('click', (e)=>{ if(e.target===overlay) closeModal(); });
+  function closeModal(){ overlay.classList.remove('active'); modalVeicoloId = null; }
+
+  document.getElementById('modal-edit').addEventListener('click', ()=>{
+    const v = veicoli.find(x=>x.id===modalVeicoloId);
+    closeModal();
+    if(v) fillFormForEdit(v);
+  });
+  document.getElementById('modal-delete').addEventListener('click', async ()=>{
+    const v = veicoli.find(x=>x.id===modalVeicoloId);
+    if(!v) return;
+    if(driveReadOnly){
+      alert('L\'archivio è al momento in sola consultazione (in uso da un altro dispositivo). Riprova più tardi.');
+      return;
+    }
+    if(confirm(`Eliminare ${v.marca} ${v.modello} dall'archivio? L'operazione non è reversibile.`)){
+      try{
+        await dbDeleteVeicolo(v.id);
+      }catch(err){
+        alert('Eliminazione non riuscita: ' + (err && err.message ? err.message : 'errore nell\'archivio locale.'));
+        return;
+      }
+      veicoli = veicoli.filter(x=>x.id!==modalVeicoloId);
+      scheduleDriveSync();
+      closeModal();
+      renderGrid();
+    }
+  });
+
+  // ---------- Init ----------
+  load().then(()=> renderGrid());
+})();
+</script>
+</body>
+</html>
