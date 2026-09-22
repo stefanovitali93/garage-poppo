@@ -982,7 +982,13 @@
     }
     setDriveStatus('Accesso a Google in corso…');
     try{
-      await requestAccessToken(true);
+      // prova prima in silenzio (autorizzazione già data in precedenza): niente schermata,
+      // niente scelta account. Solo se non basta, chiede di nuovo il consenso esplicito.
+      try{
+        await requestAccessToken(false);
+      }catch(silentErr){
+        await requestAccessToken(true);
+      }
     }catch(e){
       setDriveStatus('Accesso Google non riuscito: ' + e.message, 'error');
       return;
