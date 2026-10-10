@@ -190,6 +190,22 @@
   .lock-alert.is-error{border-color:var(--danger); background:rgba(214,69,69,0.08);}
   .lock-alert.is-error strong{color:var(--danger);}
 
+
+  .drive-gate{
+    position:fixed; inset:0; z-index:200; display:none; align-items:center; justify-content:center;
+    padding:20px; overflow-y:auto;
+    background:radial-gradient(ellipse at top, #1c1f23 0%, var(--bg) 55%);
+  }
+  .drive-gate-card{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    padding:26px 22px; max-width:420px; width:100%; display:flex; flex-direction:column; gap:14px;
+  }
+  .drive-gate-card p{font-size:13px; color:var(--text-dim); line-height:1.6; margin:0;}
+  .drive-gate-card p strong{color:var(--text);}
+  .drive-gate-card .btn{width:100%;}
+  .drive-gate-card .btn:disabled{opacity:0.5; cursor:not-allowed;}
+  .drive-gate-card .drive-status{margin-top:0;}
+
   .settings-intro{font-size:13px; color:var(--text-dim); line-height:1.6; margin:0 0 18px;}
   .drive-status{
     margin-top:16px; font-size:13px; color:var(--text-dim); background:var(--panel-alt);
@@ -585,7 +601,9 @@
       <p class="settings-intro">
         Con questa opzione, l'archivio viene salvato anche su Google Drive così da poterlo usare da più
         dispositivi. Solo una persona alla volta può modificarlo: se qualcun altro lo sta già facendo,
-        l'app te lo segnala e apre in sola consultazione.
+        l'app te lo segnala e apre in sola consultazione.<br><br>
+        <strong>Importante:</strong> su tutti i dispositivi accedi con lo <strong>stesso account Google</strong>.
+        I dati su Drive sono privati di ogni account: account diversi vedono archivi separati.
       </p>
 
       <div class="field-grid">
@@ -602,7 +620,7 @@
 
       <div class="form-actions" style="justify-content:flex-start; flex-wrap:wrap;">
         <button class="btn btn-primary" id="btn-save-drive-settings">Salva impostazioni</button>
-        <button class="btn btn-ghost" id="btn-drive-connect">Connetti Google Drive</button>
+        <button class="btn btn-ghost" id="btn-drive-connect">Connetti a Google Drive</button>
         <button class="btn btn-ghost" id="btn-drive-sync-now" style="display:none;">Sincronizza ora</button>
         <button class="btn btn-danger" id="btn-drive-end-session" style="display:none;">Fine sessione (libera l'archivio)</button>
       </div>
@@ -641,6 +659,30 @@
   </div>
 </div>
 
+<div class="drive-gate" id="drive-gate" style="display:none;">
+  <div class="drive-gate-card">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14M5 17a2 2 0 1 0 4 0 2 2 0 1 0-4 0zm10 0a2 2 0 1 0 4 0 2 2 0 1 0-4 0zM3 17V9.5a1 1 0 0 1 .3-.7l2.2-2.2A2 2 0 0 1 6.9 6h10.2a2 2 0 0 1 1.5.7l2.1 2.3a1 1 0 0 1 .3.7V17"/></svg>
+      </div>
+      <div><h1>Garage Poppo</h1><span>ARCHIVIO VEICOLI</span></div>
+    </div>
+    <p>Per non lavorare su dati non aggiornati, collegati a Google Drive prima di usare l'archivio: verranno scaricati i dati più recenti.</p>
+    <p><strong>Usa sempre lo stesso account Google su tutti i dispositivi</strong>, altrimenti ogni account vedrà un archivio diverso.</p>
+    <div class="field" id="gate-field-name" style="display:none;">
+      <label>Nome di questo dispositivo</label>
+      <input type="text" id="gate-device-label" placeholder="es. Marco - telefono">
+    </div>
+    <div class="field" id="gate-field-client" style="display:none;">
+      <label>Client ID Google</label>
+      <input type="text" id="gate-client-id" placeholder="xxxxxxxxxxxx.apps.googleusercontent.com" data-mono>
+    </div>
+    <button class="btn btn-primary" id="gate-connect">Connetti a Google Drive</button>
+    <button class="btn btn-ghost" id="gate-offline">Apri in sola consultazione</button>
+    <div class="drive-status" id="gate-status">La sola consultazione mostra i dati salvati su questo dispositivo, che potrebbero non essere aggiornati; le modifiche restano disabilitate.</div>
+  </div>
+</div>
+
 <div id="toast">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg>
   <span id="toast-msg">Salvato</span>
@@ -665,6 +707,8 @@
   let modalVeicoloId = null;
   let modalPhotoIndex = 0;
   let dbInstance = null;
+  let suppressDirty = false;   // true mentre si applicano dati scaricati da Drive (non sono modifiche locali)
+  let localEditCounter = 0;    // cresce a ogni modifica locale: serve a capire se qualcosa è cambiato durante un upload
 
   // ---------- Storage: IndexedDB ----------
   // Ogni veicolo è un record separato (non un unico grosso JSON): niente limite dei ~5-10MB
@@ -691,7 +735,28 @@
       req.onerror = (e)=> reject(e.target.error);
     });
   }
-  async function dbPutVeicolo(v){
+  async function markDirty(){
+    if(suppressDirty) return;
+    localEditCounter++;
+    try{ await dbSetMeta('localDirty', true); }catch(e){ console.error('markDirty:', e); }
+  }
+  async function dbPutVeicolo(v){ await dbPutVeicoloRaw(v); await markDirty(); }
+  async function dbDeleteVeicolo(id){ await dbDeleteVeicoloRaw(id); await markDirty(); }
+  async function dbClearVeicoli(){ await dbClearVeicoliRaw(); await markDirty(); }
+  // Sostituzione completa in un'unica transazione: o riesce tutta o non cambia nulla
+  async function dbReplaceAllVeicoli(list){
+    const db = await openDB();
+    return new Promise((resolve, reject)=>{
+      const tx = db.transaction('veicoli', 'readwrite');
+      const store = tx.objectStore('veicoli');
+      store.clear();
+      list.forEach(v=> store.put(v));
+      tx.oncomplete = ()=> resolve();
+      tx.onerror = (e)=> reject(e.target.error);
+      tx.onabort = (e)=> reject(e.target.error || new Error('Transazione annullata'));
+    });
+  }
+  async function dbPutVeicoloRaw(v){
     const db = await openDB();
     return new Promise((resolve, reject)=>{
       const tx = db.transaction('veicoli', 'readwrite');
@@ -700,7 +765,7 @@
       tx.onerror = (e)=> reject(e.target.error);
     });
   }
-  async function dbDeleteVeicolo(id){
+  async function dbDeleteVeicoloRaw(id){
     const db = await openDB();
     return new Promise((resolve, reject)=>{
       const tx = db.transaction('veicoli', 'readwrite');
@@ -709,7 +774,7 @@
       tx.onerror = (e)=> reject(e.target.error);
     });
   }
-  async function dbClearVeicoli(){
+  async function dbClearVeicoliRaw(){
     const db = await openDB();
     return new Promise((resolve, reject)=>{
       const tx = db.transaction('veicoli', 'readwrite');
@@ -778,33 +843,59 @@
   }
   async function persistTemplateFields(){
     await dbSetMeta('templateFields', templateFields);
+    await markDirty();
   }
 
   // ======================================================================
-  // ---------- Sincronizzazione Google Drive (opzionale, multi-dispositivo) ----------
+  // ---------- Sincronizzazione Google Drive (multi-dispositivo) ----------
   // ======================================================================
+  // IMPORTANTE: i file in "appDataFolder" sono privati per ogni account Google.
+  // Tutti i dispositivi devono quindi accedere con lo STESSO account Google.
+  const DEFAULT_CLIENT_ID = '415892634348-tm209a4hecn5hcs2npcpi4m8eqgoc440.apps.googleusercontent.com';     // opzionale: se compilato, i dispositivi non devono inserire il Client ID a mano
   const DRIVE_DATA_FILENAME = 'garage-poppo-data.json';
   const DRIVE_LOCK_FILENAME = 'garage-poppo-lock.json';
   const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
   const LOCK_TIMEOUT_MIN = 25;      // un lucchetto più vecchio di così è considerato abbandonato
   const LOCK_RENEW_MIN = 5;         // ogni quanto rinnoviamo il nostro lucchetto mentre siamo attivi
   const SYNC_DEBOUNCE_MS = 6000;    // attesa dopo l'ultima modifica prima di caricare su Drive
+  const MULTIPART_MAX_BYTES = 4 * 1024 * 1024; // oltre questa dimensione si usa il caricamento "resumable"
+
+  class DriveStateError extends Error{
+    constructor(kind, message){ super(message); this.kind = kind; } // kind: 'lock-lost' | 'conflict'
+  }
 
   const mySessionId = Date.now().toString(36) + Math.random().toString(36).slice(2,8);
   let tokenClient = null;
+  let tokenWaiter = null;
   let accessToken = null;
   let tokenExpiresAt = 0;
-  let driveConnected = false;
-  let driveReadOnly = false;
+  let driveConnected = false;       // true solo dopo una connessione COMPLETATA (dati allineati)
+  let driveReadOnly = false;        // connesso, ma un altro dispositivo ha il lucchetto
+  let consultazioneLocale = false;  // aperto senza Drive: solo consultazione dei dati locali
+  let driveConnecting = false;
   let driveDataFileId = null;
+  let driveLastModified = null;     // modifiedTime del file dati dopo il nostro ultimo scambio con Drive
   let driveLockFileId = null;
   let lockHeartbeatTimer = null;
   let syncDebounceTimer = null;
+  let syncPromise = Promise.resolve();
 
-  function getClientId(){ return localStorage.getItem('garage_drive_client_id_v1') || ''; }
+  function getClientId(){ return localStorage.getItem('garage_drive_client_id_v1') || DEFAULT_CLIENT_ID; }
   function getDeviceLabel(){ return localStorage.getItem('garage_device_label_v1') || 'Dispositivo senza nome'; }
   function driveConfigured(){ return !!getClientId(); }
+  // Da file:// Google non permette l'accesso: in quel caso l'app resta in modalità solo locale.
+  function gateRequired(){ return location.protocol !== 'file:'; }
 
+  // Restituisce un messaggio se in questo momento NON si può modificare l'archivio, altrimenti null.
+  function modificheBloccate(){
+    if(!gateRequired()) return null;
+    if(consultazioneLocale) return 'Sei in consultazione senza connessione a Google Drive: le modifiche sono disabilitate per evitare di lavorare su dati non aggiornati. Connettiti a Drive per modificare.';
+    if(!driveConnected) return 'Connettiti a Google Drive prima di modificare l\'archivio.';
+    if(driveReadOnly) return 'L\'archivio è al momento in sola consultazione: un altro dispositivo lo sta usando. Riprova più tardi.';
+    return null;
+  }
+
+  // ---- Accesso Google ----
   function ensureTokenClient(){
     if(tokenClient) return true;
     const clientId = getClientId();
@@ -815,19 +906,25 @@
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: clientId,
       scope: DRIVE_SCOPE,
-      callback: ()=>{} // sovrascritto ad ogni richiesta, vedi requestAccessToken
+      callback: (resp)=>{
+        const w = tokenWaiter; tokenWaiter = null;
+        if(!w) return;
+        if(resp.error){ w.reject(new Error('Accesso Google negato o annullato.')); return; }
+        accessToken = resp.access_token;
+        tokenExpiresAt = Date.now() + (resp.expires_in*1000) - 60000;
+        w.resolve(accessToken);
+      },
+      error_callback: (err)=>{
+        const w = tokenWaiter; tokenWaiter = null;
+        if(w) w.reject(new Error('Accesso Google non completato' + (err && err.type ? ' ('+err.type+')' : '') + '.'));
+      }
     });
     return true;
   }
   function requestAccessToken(interactive){
     return new Promise((resolve, reject)=>{
       if(!ensureTokenClient()){ reject(new Error('Google Identity Services non disponibile (verifica la connessione o il Client ID).')); return; }
-      tokenClient.callback = (resp)=>{
-        if(resp.error){ reject(new Error('Accesso Google negato o annullato.')); return; }
-        accessToken = resp.access_token;
-        tokenExpiresAt = Date.now() + (resp.expires_in*1000) - 60000;
-        resolve(accessToken);
-      };
+      tokenWaiter = {resolve, reject};
       tokenClient.requestAccessToken({prompt: interactive ? 'consent' : ''});
     });
   }
@@ -837,52 +934,98 @@
   }
 
   // ---- Chiamate Drive API (file nella cartella nascosta "appDataFolder") ----
+  async function driveHttpError(prefix, res){
+    let detail = '';
+    try{ detail = (await res.text()).slice(0, 200); }catch(e){ /* ignora */ }
+    return new Error(`${prefix} (${res.status})${detail ? ': ' + detail : ''}`);
+  }
   async function driveFindFile(name){
     const token = await getValidAccessToken();
     const q = encodeURIComponent(`name='${name}' and 'appDataFolder' in parents and trashed=false`);
-    const res = await fetch(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${q}&fields=files(id,name,modifiedTime)`, {
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${q}&fields=files(id,name,modifiedTime,size)`, {
       headers:{Authorization:`Bearer ${token}`}
     });
-    if(!res.ok) throw new Error(`Drive: ricerca file non riuscita (${res.status})`);
+    if(!res.ok) throw await driveHttpError('Drive: ricerca file non riuscita', res);
     const data = await res.json();
     return (data.files && data.files[0]) || null;
+  }
+  async function driveGetMeta(fileId){
+    const token = await getValidAccessToken();
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,modifiedTime,size`, {
+      headers:{Authorization:`Bearer ${token}`}
+    });
+    if(!res.ok) throw await driveHttpError('Drive: lettura informazioni file non riuscita', res);
+    return res.json();
   }
   async function driveReadFile(fileId){
     const token = await getValidAccessToken();
     const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
       headers:{Authorization:`Bearer ${token}`}
     });
-    if(!res.ok) throw new Error(`Drive: lettura file non riuscita (${res.status})`);
+    if(!res.ok) throw await driveHttpError('Drive: lettura file non riuscita', res);
     return res.json();
   }
+  // Scrive (crea o aggiorna) un file JSON. Sopra i 4 MB usa il caricamento "resumable", più adatto ai file grandi.
   async function driveWriteFile(name, obj, existingFileId){
     const token = await getValidAccessToken();
+    const json = JSON.stringify(obj);
+    const bytes = new Blob([json]).size;
     const metadata = existingFileId ? {} : {name, parents:['appDataFolder']};
-    const boundary = 'garage_poppo_' + Date.now();
-    const body =
-      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
-      `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(obj)}\r\n` +
-      `--${boundary}--`;
-    const url = existingFileId
-      ? `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart`
-      : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
-    const res = await fetch(url, {
-      method: existingFileId ? 'PATCH' : 'POST',
-      headers:{Authorization:`Bearer ${token}`, 'Content-Type':`multipart/related; boundary=${boundary}`},
-      body
-    });
-    if(!res.ok) throw new Error(`Drive: scrittura file non riuscita (${res.status})`);
-    return res.json();
+    const fields = 'id,modifiedTime,size';
+    let result;
+    if(bytes <= MULTIPART_MAX_BYTES){
+      const boundary = 'garage_poppo_' + Date.now();
+      const body =
+        `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
+        `--${boundary}\r\nContent-Type: application/json\r\n\r\n${json}\r\n` +
+        `--${boundary}--`;
+      const url = existingFileId
+        ? `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart&fields=${fields}`
+        : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=${fields}`;
+      const res = await fetch(url, {
+        method: existingFileId ? 'PATCH' : 'POST',
+        headers:{Authorization:`Bearer ${token}`, 'Content-Type':`multipart/related; boundary=${boundary}`},
+        body
+      });
+      if(!res.ok) throw await driveHttpError('Drive: scrittura file non riuscita', res);
+      result = await res.json();
+    } else {
+      const initUrl = existingFileId
+        ? `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=resumable&fields=${fields}`
+        : `https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=${fields}`;
+      const initRes = await fetch(initUrl, {
+        method: existingFileId ? 'PATCH' : 'POST',
+        headers:{
+          Authorization:`Bearer ${token}`,
+          'Content-Type':'application/json; charset=UTF-8',
+          'X-Upload-Content-Type':'application/json'
+        },
+        body: JSON.stringify(metadata)
+      });
+      if(!initRes.ok) throw await driveHttpError('Drive: avvio caricamento non riuscito', initRes);
+      const location = initRes.headers.get('Location');
+      if(!location) throw new Error('Drive: avvio caricamento non riuscito (indirizzo di upload mancante)');
+      const putRes = await fetch(location, {method:'PUT', headers:{'Content-Type':'application/json'}, body: json});
+      if(!putRes.ok) throw await driveHttpError('Drive: caricamento file non riuscito', putRes);
+      result = await putRes.json();
+    }
+    if(!result.modifiedTime || result.size === undefined){
+      const meta = await driveGetMeta(result.id);
+      result = Object.assign({}, result, meta);
+    }
+    result.bytes = bytes;
+    return result;
   }
   async function driveDeleteFile(fileId){
     const token = await getValidAccessToken();
     const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
       method:'DELETE', headers:{Authorization:`Bearer ${token}`}
     });
-    if(!res.ok && res.status !== 404) throw new Error(`Drive: eliminazione file non riuscita (${res.status})`);
+    if(!res.ok && res.status !== 404) throw await driveHttpError('Drive: eliminazione file non riuscita', res);
   }
 
   // ---- Lucchetto ----
+  // Prende (o rinnova) il lucchetto. Se un altro dispositivo lo detiene da meno di LOCK_TIMEOUT_MIN, risponde locked:true.
   async function checkAndAcquireLock(){
     const existing = await driveFindFile(DRIVE_LOCK_FILENAME);
     if(existing){
@@ -901,45 +1044,194 @@
     driveLockFileId = result.id;
     return {locked:false};
   }
+  async function verificaLockMio(){
+    const info = await checkAndAcquireLock();
+    if(info.locked) throw new DriveStateError('lock-lost', `L'archivio è stato preso in uso da ${info.by}.`);
+  }
   function startLockHeartbeat(){
     if(lockHeartbeatTimer) clearInterval(lockHeartbeatTimer);
     lockHeartbeatTimer = setInterval(async ()=>{
-      try{
-        const payload = {lockedBy:getDeviceLabel(), lockedAt:new Date().toISOString(), sessionId:mySessionId};
-        const result = await driveWriteFile(DRIVE_LOCK_FILENAME, payload, driveLockFileId);
-        driveLockFileId = result.id;
-      }catch(e){ console.error('Rinnovo lucchetto non riuscito:', e); }
+      try{ await verificaLockMio(); }
+      catch(e){
+        if(e instanceof DriveStateError) gestisciPerditaControllo(e);
+        else console.error('Rinnovo lucchetto non riuscito:', e);
+      }
     }, LOCK_RENEW_MIN*60000);
   }
   async function releaseLock(){
     if(lockHeartbeatTimer){ clearInterval(lockHeartbeatTimer); lockHeartbeatTimer = null; }
     if(!driveLockFileId) return;
-    try{ await driveDeleteFile(driveLockFileId); }catch(e){ console.error('Rilascio lucchetto non riuscito:', e); }
+    try{
+      // elimina il lucchetto solo se è ancora il nostro (mai quello di un altro dispositivo)
+      const data = await driveReadFile(driveLockFileId).catch(()=>null);
+      if(!data || data.sessionId === mySessionId) await driveDeleteFile(driveLockFileId);
+    }catch(e){ console.error('Rilascio lucchetto non riuscito:', e); }
     driveLockFileId = null;
+  }
+  function gestisciPerditaControllo(err){
+    if(driveReadOnly) return; // già gestito
+    driveReadOnly = true;
+    if(lockHeartbeatTimer){ clearInterval(lockHeartbeatTimer); lockHeartbeatTimer = null; }
+    clearTimeout(syncDebounceTimer);
+    const motivo = err.kind === 'conflict'
+      ? 'Su Google Drive i dati sono stati modificati da un altro dispositivo dopo il tuo ultimo scaricamento.'
+      : err.message;
+    const msg = `${motivo} Le ultime modifiche fatte su questo dispositivo NON sono state sincronizzate e restano salvate solo qui. ` +
+                `Per sicurezza l'app è passata in sola consultazione: usa "Esporta backup" per conservarle, poi ricarica la pagina e riconnettiti.`;
+    renderLockAlert({error:true, message:msg});
+    setDriveStatus(msg, 'error');
+    aggiornaVisibilitaControlliDrive();
+    alert('ATTENZIONE\n\n' + msg);
   }
 
   // ---- Dati: scarica/carica ----
   async function scaricaDatiDaDrive(){
-    const file = await driveFindFile(DRIVE_DATA_FILENAME);
-    if(!file){ driveDataFileId = null; return null; }
-    driveDataFileId = file.id;
-    return driveReadFile(file.id);
+    const meta = await driveFindFile(DRIVE_DATA_FILENAME);
+    if(!meta){ driveDataFileId = null; return {meta:null, data:null}; }
+    driveDataFileId = meta.id;
+    const data = await driveReadFile(meta.id);
+    return {meta, data};
+  }
+  function normalizzaVeicoli(list){
+    const arr = Array.isArray(list) ? list : [];
+    arr.forEach(v=>{ if(v.foto && !Array.isArray(v.foto)) v.foto = [v.foto]; if(!v.foto) v.foto = []; });
+    return arr;
   }
   async function caricaDatiSuDrive(){
-    const payload = {veicoli, templateFields, salvatoIl:new Date().toISOString()};
+    // 1) il lucchetto deve essere ancora nostro
+    await verificaLockMio();
+    // 2) nessun altro deve aver scritto sul file dati dopo il nostro ultimo scambio
+    if(driveDataFileId){
+      const meta = await driveGetMeta(driveDataFileId);
+      if(driveLastModified && meta.modifiedTime !== driveLastModified){
+        throw new DriveStateError('conflict', 'Il file su Drive è cambiato.');
+      }
+    }
+    const editsAllInizio = localEditCounter;
+    const payload = {versione:2, veicoli, templateFields, salvatoIl:new Date().toISOString()};
     const result = await driveWriteFile(DRIVE_DATA_FILENAME, payload, driveDataFileId);
+    // 3) verifica: la dimensione registrata da Drive deve coincidere con quella inviata
+    if(String(result.size) !== String(result.bytes)){
+      throw new Error(`Verifica del caricamento fallita (inviati ${result.bytes} byte, su Drive ${result.size}).`);
+    }
     driveDataFileId = result.id;
+    driveLastModified = result.modifiedTime;
+    await dbSetMeta('driveLastModified', driveLastModified);
+    if(localEditCounter === editsAllInizio) await dbSetMeta('localDirty', false);
+  }
+  // Serializza i caricamenti: mai due upload sovrapposti
+  function eseguiSync(){
+    syncPromise = syncPromise.catch(()=>{}).then(()=> caricaDatiSuDrive());
+    return syncPromise;
+  }
+  async function applicaDatiRemoti(remoto, meta){
+    suppressDirty = true;
+    try{
+      const lista = normalizzaVeicoli(remoto.veicoli);
+      await dbReplaceAllVeicoli(lista);
+      veicoli = lista;
+      templateFields = Array.isArray(remoto.templateFields) ? remoto.templateFields : [];
+      await dbSetMeta('templateFields', templateFields);
+    } finally { suppressDirty = false; }
+    driveLastModified = meta.modifiedTime;
+    await dbSetMeta('driveLastModified', driveLastModified);
+    await dbSetMeta('localDirty', false);
+  }
+  function scaricaFileJson(nome, dati){
+    const blob = new Blob([JSON.stringify(dati, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nome;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=> URL.revokeObjectURL(url), 5000);
+  }
+
+  // Allineamento al momento della connessione: decide se scaricare da Drive o caricare i dati locali,
+  // senza mai sovrascrivere in silenzio dati diversi.
+  async function sincronizzaAllaConnessione(){
+    await load(); // rilegge i dati locali dal database del browser (fonte di verità locale)
+    const {meta:remoteMeta, data:remoto} = await scaricaDatiDaDrive();
+    driveLastModified = remoteMeta ? remoteMeta.modifiedTime : null;
+    const remoteList = remoto ? normalizzaVeicoli(remoto.veicoli) : [];
+    const localCount = veicoli.length;
+    const remoteCount = remoteList.length;
+    const lastSynced = await dbGetMeta('driveLastModified');
+    const dirtyFlag = await dbGetMeta('localDirty');
+    const localDirty = dirtyFlag !== false; // stato sconosciuto = si assume che ci siano modifiche non sincronizzate
+
+    let azione;
+    if(remoteCount === 0 && localCount === 0) azione = 'vuoto';
+    else if(remoteCount === 0) azione = 'carica';
+    else if(localCount === 0) azione = 'scarica';
+    else if(!localDirty && remoteMeta.modifiedTime === lastSynced) azione = 'aggiornato';
+    else if(!localDirty) azione = 'scarica';
+    else if(remoteMeta.modifiedTime === lastSynced) azione = 'carica';
+    else azione = 'chiedi';
+
+    if(azione === 'chiedi'){
+      const stamp = new Date().toISOString().slice(0,10);
+      const tieniLocale = confirm(
+        `ATTENZIONE: i dati di questo dispositivo (${localCount} veicoli, con modifiche non ancora sincronizzate) ` +
+        `sono diversi da quelli su Google Drive (${remoteCount} veicoli).\n\n` +
+        `OK = tieni i dati di QUESTO dispositivo e sovrascrivi quelli su Drive.\n` +
+        `Annulla = scegli un'altra opzione.`
+      );
+      if(tieniLocale){
+        scaricaFileJson(`garage-backup-drive-prima-della-sovrascrittura-${stamp}.json`, remoteList);
+        azione = 'carica';
+      } else {
+        const usaDrive = confirm(
+          `Vuoi usare i dati di Google Drive (${remoteCount} veicoli) e SOSTITUIRE quelli di questo dispositivo (${localCount} veicoli)?\n\n` +
+          `Prima della sostituzione verrà scaricato automaticamente un backup dei dati di questo dispositivo.\n\n` +
+          `OK = usa Drive.\nAnnulla = interrompi la connessione senza cambiare nulla.`
+        );
+        if(!usaDrive) throw new Error('Connessione annullata: nessun dato è stato modificato.');
+        scaricaFileJson(`garage-backup-dispositivo-prima-della-sostituzione-${stamp}.json`, veicoli);
+        azione = 'scarica';
+      }
+    }
+
+    if(azione === 'scarica'){
+      await applicaDatiRemoti(remoto, remoteMeta);
+    } else if(azione === 'carica'){
+      await eseguiSync();
+    } else if(azione === 'aggiornato'){
+      // già allineato: niente da fare
+    } else if(azione === 'vuoto'){
+      if(remoteMeta){
+        driveLastModified = remoteMeta.modifiedTime;
+        await dbSetMeta('driveLastModified', driveLastModified);
+      }
+      await dbSetMeta('localDirty', false);
+      setTimeout(()=> alert(
+        'L\'archivio è vuoto sia su questo dispositivo sia su Google Drive.\n\n' +
+        'Se è il primo utilizzo, è normale. Se invece ti aspettavi di trovare dei veicoli, quasi certamente hai effettuato ' +
+        'l\'accesso con un account Google DIVERSO da quello usato sugli altri dispositivi: ogni account Google ha un archivio separato. ' +
+        'Usa "Fine sessione" e riconnettiti con l\'account giusto.'
+      ), 200);
+    }
   }
 
   // ---- Stato UI ----
   function setDriveStatus(msg, kind){
-    const el = document.getElementById('drive-status');
-    el.textContent = msg;
-    el.className = 'drive-status' + (kind ? ' status-'+kind : '');
+    ['drive-status', 'gate-status'].forEach(id=>{
+      const el = document.getElementById(id);
+      if(!el) return;
+      el.textContent = msg;
+      el.className = 'drive-status' + (kind ? ' status-'+kind : '');
+    });
   }
   function renderLockAlert(info){
     const box = document.getElementById('lock-alert');
     if(!info){ box.style.display = 'none'; box.innerHTML = ''; return; }
+    if(info.offline){
+      box.className = 'lock-alert is-error';
+      box.innerHTML = `<span>📴 Consultazione senza connessione a Google Drive: i dati potrebbero non essere aggiornati e le modifiche sono disabilitate.</span>
+        <button class="btn btn-ghost" id="lock-alert-connect">Connetti a Drive</button>`;
+      box.style.display = 'flex';
+      document.getElementById('lock-alert-connect').addEventListener('click', ()=> mostraGate());
+      return;
+    }
     box.className = 'lock-alert' + (info.error ? ' is-error' : '');
     box.innerHTML = info.error
       ? `⚠️ ${escapeHtml(info.message)}`
@@ -950,6 +1242,9 @@
     try{ return new Date(iso).toLocaleString('it-IT', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit'}); }
     catch(e){ return iso; }
   }
+  function oraCorrente(){
+    return new Date().toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit'});
+  }
 
   function scheduleDriveSync(){
     if(!driveConnected || driveReadOnly) return;
@@ -958,11 +1253,12 @@
     syncDebounceTimer = setTimeout(async ()=>{
       setDriveStatus('Sincronizzazione con Drive in corso…');
       try{
-        await caricaDatiSuDrive();
-        setDriveStatus('Sincronizzato con Google Drive ✓', 'ok');
+        await eseguiSync();
+        setDriveStatus(`Sincronizzato con Google Drive ✓ (${oraCorrente()})`, 'ok');
       }catch(e){
+        if(e instanceof DriveStateError){ gestisciPerditaControllo(e); return; }
         console.error('Sync Drive non riuscita:', e);
-        setDriveStatus('Errore di sincronizzazione: ' + e.message + ' — le modifiche restano salvate in locale su questo dispositivo.', 'error');
+        setDriveStatus('Errore di sincronizzazione: ' + e.message + ' — le modifiche restano salvate in locale su questo dispositivo: usa "Sincronizza ora" per riprovare.', 'error');
       }
     }, SYNC_DEBOUNCE_MS);
   }
@@ -970,104 +1266,163 @@
     if(!driveConnected || driveReadOnly) return;
     clearTimeout(syncDebounceTimer);
     setDriveStatus('Sincronizzazione con Drive in corso…');
-    await caricaDatiSuDrive();
-    setDriveStatus('Sincronizzato con Google Drive ✓', 'ok');
+    try{
+      await eseguiSync();
+    }catch(e){
+      if(e instanceof DriveStateError) gestisciPerditaControllo(e);
+      throw e;
+    }
+    setDriveStatus(`Sincronizzato con Google Drive ✓ (${oraCorrente()})`, 'ok');
   }
 
-  // ---- Connessione (pulsante "Connetti Google Drive") ----
+  // ---- Schermata di connessione obbligatoria ----
+  function mostraGate(){
+    if(!gateRequired()) return;
+    const needName = !localStorage.getItem('garage_device_label_v1');
+    const needClient = !driveConfigured();
+    document.getElementById('gate-field-name').style.display = needName ? 'flex' : 'none';
+    document.getElementById('gate-field-client').style.display = needClient ? 'flex' : 'none';
+    document.getElementById('drive-gate').style.display = 'flex';
+    aggiornaVisibilitaControlliDrive();
+  }
+  function nascondiGate(){
+    document.getElementById('drive-gate').style.display = 'none';
+  }
+  async function gateConnetti(){
+    const nameInp = document.getElementById('gate-device-label');
+    const cidInp = document.getElementById('gate-client-id');
+    if(nameInp.value.trim()) localStorage.setItem('garage_device_label_v1', nameInp.value.trim());
+    if(cidInp.value.trim()){
+      localStorage.setItem('garage_drive_client_id_v1', cidInp.value.replace(/\s+/g, ''));
+      tokenClient = null;
+    }
+    document.getElementById('f-device-label').value = localStorage.getItem('garage_device_label_v1') || '';
+    document.getElementById('f-client-id').value = getClientId();
+    if(!localStorage.getItem('garage_device_label_v1')){
+      setDriveStatus('Inserisci un nome per questo dispositivo (serve a riconoscere chi sta usando l\'archivio).', 'error');
+      return;
+    }
+    if(!driveConfigured()){
+      setDriveStatus('Inserisci il Client ID Google per continuare.', 'error');
+      return;
+    }
+    await connettiGoogleDrive();
+  }
+  function gateConsultazione(){
+    consultazioneLocale = true;
+    driveConnected = false;
+    driveReadOnly = false;
+    nascondiGate();
+    renderLockAlert({offline:true});
+    aggiornaVisibilitaControlliDrive();
+    renderGrid();
+  }
+
+  // ---- Connessione ----
   async function connettiGoogleDrive(){
+    if(driveConnecting) return;
     if(!driveConfigured()){
       alert('Inserisci prima il Client ID Google e salva le impostazioni.');
       return;
     }
-    setDriveStatus('Accesso a Google in corso…');
+    driveConnecting = true;
+    aggiornaVisibilitaControlliDrive();
+    let lockPreso = false;
     try{
-      // prova prima in silenzio (autorizzazione già data in precedenza): niente schermata,
-      // niente scelta account. Solo se non basta, chiede di nuovo il consenso esplicito.
-      try{
-        await requestAccessToken(false);
-      }catch(silentErr){
-        await requestAccessToken(true);
-      }
-    }catch(e){
-      setDriveStatus('Accesso Google non riuscito: ' + e.message, 'error');
-      return;
-    }
-    setDriveStatus('Verifico se l\'archivio è in uso altrove…');
-    let lockInfo;
-    try{
-      lockInfo = await checkAndAcquireLock();
-    }catch(e){
-      setDriveStatus('Errore di connessione a Drive: ' + e.message, 'error');
-      return;
-    }
-    if(lockInfo.locked){
-      driveReadOnly = true;
-      driveConnected = true;
-      renderLockAlert(lockInfo);
-      setDriveStatus(`Connesso, ma in sola consultazione (archivio in uso da ${lockInfo.by}). I dati mostrati sono quelli salvati sull'ultimo dispositivo che ha sincronizzato.`, 'error');
-      try{
-        const remoto = await scaricaDatiDaDrive();
-        if(remoto){
-          veicoli = remoto.veicoli || [];
-          veicoli.forEach(v=>{ if(v.foto && !Array.isArray(v.foto)) v.foto=[v.foto]; if(!v.foto) v.foto=[]; });
-          templateFields = remoto.templateFields || [];
-          renderGrid();
+      setDriveStatus('Accesso a Google in corso…');
+      // prova prima in silenzio (autorizzazione già concessa); se non basta chiede il consenso esplicito
+      try{ await requestAccessToken(false); }
+      catch(silentErr){ await requestAccessToken(true); }
+
+      setDriveStatus('Verifico se l\'archivio è in uso altrove…');
+      const lockInfo = await checkAndAcquireLock();
+      if(lockInfo.locked){
+        // sola consultazione: mostra i dati presenti su Drive, senza toccare la copia locale
+        const {data} = await scaricaDatiDaDrive();
+        if(data){
+          veicoli = normalizzaVeicoli(data.veicoli);
+          templateFields = Array.isArray(data.templateFields) ? data.templateFields : [];
         }
-      }catch(e){ console.error(e); }
-      aggiornaVisibilitaControlliDrive();
-      return;
-    }
-    driveReadOnly = false;
-    driveConnected = true;
-    renderLockAlert(null);
-    setDriveStatus('Scarico l\'archivio da Drive…');
-    try{
-      const remoto = await scaricaDatiDaDrive();
-      if(remoto){
-        veicoli = remoto.veicoli || [];
-        veicoli.forEach(v=>{ if(v.foto && !Array.isArray(v.foto)) v.foto=[v.foto]; if(!v.foto) v.foto=[]; });
-        templateFields = remoto.templateFields || [];
-        // allinea la copia locale (IndexedDB) a quella scaricata da Drive
-        await dbClearVeicoli();
-        for(const v of veicoli){ await dbPutVeicolo(v); }
-        await persistTemplateFields();
-      } else {
-        // nessun dato su Drive ancora: carica quello che c'è in locale
-        await caricaDatiSuDrive();
+        driveReadOnly = true;
+        driveConnected = true;
+        consultazioneLocale = false;
+        renderLockAlert(lockInfo);
+        setDriveStatus(`Connesso, ma in sola consultazione: archivio in uso da ${lockInfo.by}. I dati mostrati sono quelli presenti su Drive.`, 'error');
+        nascondiGate();
+        renderGrid();
+        return;
       }
-      renderGrid();
+      lockPreso = true;
+
+      setDriveStatus('Allineo l\'archivio con Google Drive…');
+      await sincronizzaAllaConnessione();
+
+      driveReadOnly = false;
+      driveConnected = true;
+      consultazioneLocale = false;
       startLockHeartbeat();
-      setDriveStatus('Connesso e sincronizzato con Google Drive ✓', 'ok');
+      renderLockAlert(null);
+      nascondiGate();
+      renderGrid();
+      setDriveStatus(`Connesso e sincronizzato con Google Drive ✓ (${oraCorrente()})`, 'ok');
     }catch(e){
       console.error(e);
-      setDriveStatus('Errore durante lo scaricamento da Drive: ' + e.message, 'error');
+      if(lockPreso) await releaseLock();
+      driveConnected = false;
+      driveReadOnly = false;
+      setDriveStatus('Connessione a Drive non riuscita: ' + e.message, 'error');
+    }finally{
+      driveConnecting = false;
+      aggiornaVisibilitaControlliDrive();
     }
-    aggiornaVisibilitaControlliDrive();
   }
 
   async function terminaSessioneDrive(){
-    if(!driveConnected){ return; }
+    if(!driveConnected) return;
     setDriveStatus('Chiusura sessione in corso…');
-    try{ if(!driveReadOnly) await flushDriveSyncNow(); }catch(e){ console.error(e); }
+    if(!driveReadOnly){
+      try{ await flushDriveSyncNow(); }
+      catch(e){
+        console.error(e);
+        if(!confirm('La sincronizzazione finale con Drive non è riuscita (' + e.message + ').\n\n' +
+                    'Se chiudi ora, le ultime modifiche restano solo su questo dispositivo e non saranno visibili agli altri. Chiudere comunque la sessione?')){
+          setDriveStatus('Chiusura annullata: le modifiche non sono ancora su Drive.', 'error');
+          return;
+        }
+      }
+    }
     await releaseLock();
     driveConnected = false;
     driveReadOnly = false;
+    consultazioneLocale = false;
     renderLockAlert(null);
     setDriveStatus('Sessione chiusa: l\'archivio è di nuovo libero per gli altri dispositivi.');
     aggiornaVisibilitaControlliDrive();
+    mostraGate();
   }
 
   function aggiornaVisibilitaControlliDrive(){
     document.getElementById('btn-drive-sync-now').style.display = (driveConnected && !driveReadOnly) ? 'inline-block' : 'none';
     document.getElementById('btn-drive-end-session').style.display = driveConnected ? 'inline-block' : 'none';
-    document.getElementById('btn-save').disabled = driveReadOnly;
-    if(driveReadOnly){
-      document.getElementById('btn-save').title = 'Archivio in sola consultazione: un altro dispositivo lo sta usando.';
-    } else {
-      document.getElementById('btn-save').title = '';
-    }
+    document.getElementById('btn-drive-connect').disabled = driveConnecting;
+    const gateBtn = document.getElementById('gate-connect');
+    gateBtn.disabled = driveConnecting;
+    gateBtn.textContent = driveConnecting ? 'Connessione in corso…' : 'Connetti a Google Drive';
+    document.getElementById('gate-offline').disabled = driveConnecting;
+    const blocco = modificheBloccate();
+    document.getElementById('btn-save').disabled = !!blocco;
+    document.getElementById('btn-save').title = blocco || '';
   }
+
+  // Quando la scheda torna visibile (es. dopo che il telefono l'ha messa in pausa) controlla di avere ancora il lucchetto
+  document.addEventListener('visibilitychange', async ()=>{
+    if(document.visibilityState !== 'visible' || !driveConnected || driveReadOnly) return;
+    try{ await verificaLockMio(); }
+    catch(e){
+      if(e instanceof DriveStateError) gestisciPerditaControllo(e);
+      else console.error(e);
+    }
+  });
 
   // Best-effort: prova a liberare il lucchetto se si chiude la scheda (non garantito dal browser)
   window.addEventListener('beforeunload', ()=>{
@@ -1080,19 +1435,20 @@
     }
   });
 
-  // ---- Collegamento UI Impostazioni ----
-  document.getElementById('f-device-label').value = getDeviceLabel();
+  // ---- Collegamento UI ----
+  document.getElementById('f-device-label').value = localStorage.getItem('garage_device_label_v1') || '';
   document.getElementById('f-client-id').value = getClientId();
   function aggiornaStatoConfigurazione(){
     if(!driveConfigured()){
-      setDriveStatus('Sincronizzazione non configurata — l\'app funziona comunque in locale su questo dispositivo.');
+      setDriveStatus('Sincronizzazione non configurata: inserisci il Client ID Google.');
     } else if(!driveConnected){
-      setDriveStatus('Configurato, non ancora connesso in questa sessione. Premi "Connetti Google Drive".');
+      setDriveStatus('Configurato, non ancora connesso in questa sessione. Premi "Connetti a Google Drive".');
     }
   }
   document.getElementById('btn-save-drive-settings').addEventListener('click', ()=>{
     localStorage.setItem('garage_device_label_v1', document.getElementById('f-device-label').value.trim());
-    localStorage.setItem('garage_drive_client_id_v1', document.getElementById('f-client-id').value.trim());
+    localStorage.setItem('garage_drive_client_id_v1', document.getElementById('f-client-id').value.replace(/\s+/g, ''));
+    document.getElementById('f-client-id').value = getClientId();
     tokenClient = null; // forza la ricreazione col nuovo client id, se cambiato
     showToast('Impostazioni salvate');
     aggiornaStatoConfigurazione();
@@ -1103,6 +1459,8 @@
     catch(e){ setDriveStatus('Errore di sincronizzazione: ' + e.message, 'error'); }
   });
   document.getElementById('btn-drive-end-session').addEventListener('click', terminaSessioneDrive);
+  document.getElementById('gate-connect').addEventListener('click', gateConnetti);
+  document.getElementById('gate-offline').addEventListener('click', gateConsultazione);
   aggiornaStatoConfigurazione();
 
   // ---------- Toast ----------
@@ -1121,6 +1479,10 @@
     btn.addEventListener('click', ()=> switchTab(btn.dataset.tab));
   });
   function switchTab(tab){
+    if(tab==='aggiungi'){
+      const blocco = modificheBloccate();
+      if(blocco){ alert(blocco); return; }
+    }
     tabBtns.forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
     document.getElementById('view-archivio').classList.toggle('active', tab==='archivio');
     document.getElementById('view-aggiungi').classList.toggle('active', tab==='aggiungi');
@@ -1440,10 +1802,8 @@
   document.getElementById('btn-cancel').addEventListener('click', resetForm);
 
   document.getElementById('btn-save').addEventListener('click', async ()=>{
-    if(driveReadOnly){
-      alert('L\'archivio è al momento in sola consultazione (in uso da un altro dispositivo). Riprova più tardi.');
-      return;
-    }
+    const bloccoSalva = modificheBloccate();
+    if(bloccoSalva){ alert(bloccoSalva); return; }
     const marca = document.getElementById('f-marca').value.trim();
     const modello = document.getElementById('f-modello').value.trim();
     if(!marca || !modello){
@@ -1607,11 +1967,8 @@
         `OK = sostituisci l'intero archivio attuale con quello del file.\n` +
         `Annulla = unisci con l'archivio attuale (i veicoli con lo stesso ID vengono aggiornati, gli altri restano).`
       );
-      if(driveReadOnly){
-        alert('L\'archivio è al momento in sola consultazione (in uso da un altro dispositivo). Riprova più tardi.');
-        importInput.value = '';
-        return;
-      }
+      const bloccoImport = modificheBloccate();
+      if(bloccoImport){ alert(bloccoImport); importInput.value = ''; return; }
       try{
         if(sostituisci){
           await dbClearVeicoli();
@@ -2029,6 +2386,8 @@
   function closeModal(){ overlay.classList.remove('active'); modalVeicoloId = null; }
 
   document.getElementById('modal-edit').addEventListener('click', ()=>{
+    const bloccoModifica = modificheBloccate();
+    if(bloccoModifica){ alert(bloccoModifica); return; }
     const v = veicoli.find(x=>x.id===modalVeicoloId);
     closeModal();
     if(v) fillFormForEdit(v);
@@ -2036,10 +2395,8 @@
   document.getElementById('modal-delete').addEventListener('click', async ()=>{
     const v = veicoli.find(x=>x.id===modalVeicoloId);
     if(!v) return;
-    if(driveReadOnly){
-      alert('L\'archivio è al momento in sola consultazione (in uso da un altro dispositivo). Riprova più tardi.');
-      return;
-    }
+    const bloccoElimina = modificheBloccate();
+    if(bloccoElimina){ alert(bloccoElimina); return; }
     if(confirm(`Eliminare ${v.marca} ${v.modello} dall'archivio? L'operazione non è reversibile.`)){
       try{
         await dbDeleteVeicolo(v.id);
@@ -2055,7 +2412,11 @@
   });
 
   // ---------- Init ----------
-  load().then(()=> renderGrid());
+  load().then(()=>{
+    renderGrid();
+    aggiornaVisibilitaControlliDrive();
+    mostraGate(); // se l'app è online, chiede subito di collegarsi a Drive
+  });
 })();
 </script>
 </body>
