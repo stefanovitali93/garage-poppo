@@ -865,6 +865,14 @@
   }
 
   const mySessionId = Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+  // Identificativo stabile di questo dispositivo/browser: serve a riconoscere il "proprio" lucchetto dopo una chiusura brusca
+  const myDeviceId = (()=>{
+    try{
+      let id = localStorage.getItem('garage_device_id_v1');
+      if(!id){ id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2,10); localStorage.setItem('garage_device_id_v1', id); }
+      return id;
+    }catch(e){ return 'd-' + mySessionId; }
+  })();
   let tokenClient = null;
   let tokenWaiter = null;
   let accessToken = null;
@@ -1026,20 +1034,21 @@
 
   // ---- Lucchetto ----
   // Prende (o rinnova) il lucchetto. Se un altro dispositivo lo detiene da meno di LOCK_TIMEOUT_MIN, risponde locked:true.
-  async function checkAndAcquireLock(){
+  async function checkAndAcquireLock(riprendiStessoDispositivo){
     const existing = await driveFindFile(DRIVE_LOCK_FILENAME);
     if(existing){
       let lockData;
       try{ lockData = await driveReadFile(existing.id); }catch(e){ lockData = null; }
-      if(lockData && lockData.sessionId !== mySessionId){
+      // stesso dispositivo (es. scheda chiusa o telefono sospeso senza "Fine sessione"): riprende il controllo
+      if(lockData && lockData.sessionId !== mySessionId && !(riprendiStessoDispositivo && lockData.deviceId === myDeviceId)){
         const ageMin = (Date.now() - new Date(lockData.lockedAt).getTime()) / 60000;
         if(ageMin < LOCK_TIMEOUT_MIN){
-          return {locked:true, by: lockData.lockedBy, since: lockData.lockedAt};
+          return {locked:true, by: lockData.lockedBy, since: lockData.lockedAt, lockFileId: existing.id};
         }
       }
       driveLockFileId = existing.id;
     }
-    const payload = {lockedBy:getDeviceLabel(), lockedAt:new Date().toISOString(), sessionId:mySessionId};
+    const payload = {lockedBy:getDeviceLabel(), lockedAt:new Date().toISOString(), sessionId:mySessionId, deviceId:myDeviceId};
     const result = await driveWriteFile(DRIVE_LOCK_FILENAME, payload, driveLockFileId);
     driveLockFileId = result.id;
     return {locked:false};
@@ -1060,13 +1069,36 @@
   }
   async function releaseLock(){
     if(lockHeartbeatTimer){ clearInterval(lockHeartbeatTimer); lockHeartbeatTimer = null; }
-    if(!driveLockFileId) return;
+    if(!driveLockFileId) return true;
+    let ok = true;
     try{
       // elimina il lucchetto solo se è ancora il nostro (mai quello di un altro dispositivo)
       const data = await driveReadFile(driveLockFileId).catch(()=>null);
       if(!data || data.sessionId === mySessionId) await driveDeleteFile(driveLockFileId);
-    }catch(e){ console.error('Rilascio lucchetto non riuscito:', e); }
+    }catch(e){ console.error('Rilascio lucchetto non riuscito:', e); ok = false; }
     driveLockFileId = null;
+    return ok;
+  }
+  // Liberazione forzata: cancella il lucchetto di un altro dispositivo (da usare solo se si sa che non sta lavorando)
+  async function liberaArchivioForzatamente(lockFileId){
+    const conferma = confirm('Liberare forzatamente l\'archivio?\n\n' +
+      'Fallo SOLO se sei sicuro che nessun altro stia lavorando adesso (es. hai chiuso la scheda o il telefono ha perso la connessione). ' +
+      'Se qualcuno sta davvero modificando, le sue ultime modifiche potrebbero non essere sincronizzate.');
+    if(!conferma) return;
+    try{
+      setDriveStatus('Libero l\'archivio…');
+      await requestAccessToken(false).catch(()=> requestAccessToken(true));
+      const existing = lockFileId ? {id: lockFileId} : await driveFindFile(DRIVE_LOCK_FILENAME);
+      if(existing) await driveDeleteFile(existing.id);
+      driveLockFileId = null;
+      driveConnected = false; driveReadOnly = false;
+      renderLockAlert(null);
+      await connettiGoogleDrive();
+    }catch(e){
+      console.error(e);
+      setDriveStatus('Liberazione non riuscita: ' + e.message, 'error');
+      alert('Liberazione non riuscita: ' + e.message);
+    }
   }
   function gestisciPerditaControllo(err){
     if(driveReadOnly) return; // già gestito
@@ -1235,8 +1267,11 @@
     box.className = 'lock-alert' + (info.error ? ' is-error' : '');
     box.innerHTML = info.error
       ? `⚠️ ${escapeHtml(info.message)}`
-      : `🔒 Archivio in sola consultazione: in uso da <strong>${escapeHtml(info.by)}</strong> dalle ${formatOraIt(info.since)}. Riprova più tardi per modificare.`;
+      : `🔒 Archivio in sola consultazione: in uso da <strong>${escapeHtml(info.by)}</strong> dalle ${formatOraIt(info.since)}. Riprova più tardi per modificare.` +
+        ` <button class="btn btn-ghost" id="lock-alert-force">Libera archivio</button>`;
     box.style.display = 'flex';
+    const fb = document.getElementById('lock-alert-force');
+    if(fb) fb.addEventListener('click', ()=> liberaArchivioForzatamente(info.lockFileId));
   }
   function formatOraIt(iso){
     try{ return new Date(iso).toLocaleString('it-IT', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit'}); }
@@ -1335,7 +1370,7 @@
       catch(silentErr){ await requestAccessToken(true); }
 
       setDriveStatus('Verifico se l\'archivio è in uso altrove…');
-      const lockInfo = await checkAndAcquireLock();
+      const lockInfo = await checkAndAcquireLock(true);
       if(lockInfo.locked){
         // sola consultazione: mostra i dati presenti su Drive, senza toccare la copia locale
         const {data} = await scaricaDatiDaDrive();
@@ -1391,12 +1426,16 @@
         }
       }
     }
-    await releaseLock();
+    const rilasciato = await releaseLock();
     driveConnected = false;
     driveReadOnly = false;
     consultazioneLocale = false;
     renderLockAlert(null);
-    setDriveStatus('Sessione chiusa: l\'archivio è di nuovo libero per gli altri dispositivi.');
+    if(rilasciato) setDriveStatus('Sessione chiusa: l\'archivio è di nuovo libero per gli altri dispositivi.');
+    else{
+      setDriveStatus('Sessione chiusa, ma NON sono riuscito a liberare l\'archivio su Drive (connessione assente?). Resterà occupato fino a 25 minuti, oppure puoi liberarlo con "Libera archivio" da un altro dispositivo.', 'error');
+      alert('Attenzione: l\'archivio su Drive potrebbe risultare ancora occupato per qualche minuto.');
+    }
     aggiornaVisibilitaControlliDrive();
     mostraGate();
   }
@@ -1425,16 +1464,6 @@
   });
 
   // Best-effort: prova a liberare il lucchetto se si chiude la scheda (non garantito dal browser)
-  window.addEventListener('beforeunload', ()=>{
-    if(driveConnected && driveLockFileId && accessToken){
-      try{
-        navigator.sendBeacon(
-          `https://www.googleapis.com/drive/v3/files/${driveLockFileId}?access_token=${accessToken}&method=DELETE`
-        );
-      }catch(e){ /* best effort */ }
-    }
-  });
-
   // ---- Collegamento UI ----
   document.getElementById('f-device-label').value = localStorage.getItem('garage_device_label_v1') || '';
   document.getElementById('f-client-id').value = getClientId();
